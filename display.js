@@ -168,7 +168,9 @@ async function processNanopub() {
         document.getElementById('loading').textContent = 'Fetching predicate labels from the web...';
         
         // Use parseWithLabels() to fetch labels from the web
+        console.log('About to call parseWithLabels');
         const data = await parser.parseWithLabels();
+        console.log('parseWithLabels returned:', data);
         displayPublication(data);
     } catch (error) {
         console.error('Parse error:', error);
