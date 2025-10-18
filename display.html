@@ -27,18 +27,27 @@
                 <textarea id="npContent" placeholder="Or paste nanopublication content here (e.g., .trig format)..."></textarea>
             </div>
 
-            <div class="input-group">
-                <label>2. Upload or paste the template content (optional for better display):</label>
-                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
-                    <input type="file" id="templateFile" accept=".trig,.ttl,.nq,.txt" style="display: none;">
-                    <button onclick="document.getElementById('templateFile').click()" style="padding: 8px 16px; background: white; border: 2px solid var(--primary); color: var(--primary); border-radius: 4px; cursor: pointer;">
-                        <i class="fas fa-folder-open"></i> Choose File
-                    </button>
-                    <span id="templateFileName" style="color: var(--text-light); font-style: italic;">No file selected</span>
-                </div>
-                <textarea id="templateContent" placeholder="Or paste template content here..."></textarea>
+<!-- Advanced Options (collapsible) -->
+<div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
+    <button onclick="toggleAdvancedOptions()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); color: var(--text-dark); border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+        <i class="fas fa-cog"></i> Advanced Options
+        <i id="advancedToggleIcon" class="fas fa-chevron-down" style="font-size: 0.8em;"></i>
+    </button>
+    
+    <div id="advancedOptions" style="display: none; margin-top: 15px;">
+        <div class="input-group">
+            <label>Template override (optional - auto-fetched by default):</label>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <input type="file" id="templateFile" accept=".trig,.ttl,.nq,.txt" style="display: none;">
+                <button onclick="document.getElementById('templateFile').click()" style="padding: 8px 16px; background: white; border: 2px solid var(--primary); color: var(--primary); border-radius: 4px; cursor: pointer;">
+                    <i class="fas fa-folder-open"></i> Choose File
+                </button>
+                <span id="templateFileName" style="color: var(--text-light); font-style: italic;">No file selected</span>
             </div>
-
+            <textarea id="templateContent" placeholder="Paste template content here to override auto-fetch..."></textarea>
+        </div>
+    </div>
+</div>
             <button class="btn" onclick="processNanopub()"><i class="fas fa-file-export"></i> Process and Display</button>
         </div>
 
