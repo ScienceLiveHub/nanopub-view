@@ -87,7 +87,7 @@ document.addEventListener('click', function(event) {
 // ============= MAIN PROCESSING FUNCTION =============
 async function processNanopub() {
     const npContent = document.getElementById('npContent').value;
-    const templateContent = document.getElementById('templateContent').value;
+    let templateContent = document.getElementById('templateContent').value;
     
     if (!npContent.trim()) {
         showError('Please provide a nanopublication to display');
@@ -100,6 +100,69 @@ async function processNanopub() {
     
     try {
         const parser = new NanopubParser(npContent, templateContent);
+        
+        // If no template provided, try to fetch it automatically
+        if (!templateContent || !templateContent.trim()) {
+            document.getElementById('loading').textContent = 'Looking for template reference...';
+            const templateUri = parser.extractTemplateUri();
+            
+            if (templateUri) {
+                console.log('Found template URI:', templateUri);
+                document.getElementById('loading').textContent = 'Fetching template from ' + templateUri + '...';
+                
+                try {
+                    // Try multiple methods to fetch the template
+                    let fetchedContent = null;
+                    
+                    // Method 1: Direct fetch
+                    try {
+                        const response = await fetch(templateUri, {
+                            headers: {
+                                'Accept': 'text/turtle, application/trig, application/rdf+xml, text/plain'
+                            },
+                            mode: 'cors'
+                        });
+                        
+                        if (response.ok) {
+                            fetchedContent = await response.text();
+                        }
+                    } catch (directError) {
+                        console.warn('Direct fetch failed:', directError);
+                    }
+                    
+                    // Method 2: Try with CORS proxy if direct fetch failed
+                    if (!fetchedContent) {
+                        try {
+                            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(templateUri)}`;
+                            const response = await fetch(proxyUrl);
+                            if (response.ok) {
+                                fetchedContent = await response.text();
+                            }
+                        } catch (proxyError) {
+                            console.warn('Proxy fetch failed:', proxyError);
+                        }
+                    }
+                    
+                    if (fetchedContent) {
+                        templateContent = fetchedContent;
+                        console.log('Template fetched successfully');
+                        // Update the parser with the fetched template
+                        parser.templateContent = templateContent;
+                        parser.template = null; // Reset to reparse
+                    } else {
+                        console.warn('Could not fetch template from any source');
+                        document.getElementById('loading').textContent = 'Template not accessible, continuing without it...';
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Show message briefly
+                    }
+                } catch (fetchError) {
+                    console.warn('Error fetching template:', fetchError);
+                    document.getElementById('loading').textContent = 'Could not fetch template, continuing without it...';
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } else {
+                console.log('No template reference found in nanopublication');
+            }
+        }
         
         // Update loading message
         document.getElementById('loading').textContent = 'Fetching predicate labels from the web...';
@@ -114,7 +177,6 @@ async function processNanopub() {
         document.getElementById('loading').classList.remove('active');
     }
 }
-
 // ============= DISPLAY FUNCTIONS =============
 function displayPublication(data) {
     let html = `
@@ -278,4 +340,20 @@ function showError(message) {
     document.getElementById('error').textContent = message;
     document.getElementById('error').classList.add('active');
     document.getElementById('loading').classList.remove('active');
+}
+
+// ============= ADVANCED OPTIONS TOGGLE =============
+function toggleAdvancedOptions() {
+    const options = document.getElementById('advancedOptions');
+    const icon = document.getElementById('advancedToggleIcon');
+    
+    if (options.style.display === 'none') {
+        options.style.display = 'block';
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+    } else {
+        options.style.display = 'none';
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+    }
 }

@@ -351,7 +351,7 @@ class NanopubParser {
         return this.formatForPublication();
     }
 
-    // NEW METHOD: Async version that fetches labels
+    // Async version that fetches labels
     async parseWithLabels() {
         // Do normal parsing first
         const data = this.parse();
@@ -817,4 +817,52 @@ class NanopubParser {
         const label = parts[parts.length - 1];
         return label.replace(/([A-Z])/g, ' $1').replace(/^has/, 'Has').trim();
     }
+
+extractTemplateUri() {
+    // Make sure prefixes are extracted first
+    if (Object.keys(this.prefixes).length === 0) {
+        this.extractPrefixes();
+    }
+    
+    // Look in pubinfo section for wasCreatedFromTemplate
+    const pubinoMatch = this.content.match(/sub:pubinfo\s*\{([^}]+)\}/s);
+    if (!pubinoMatch) return null;
+    
+    const pubinfoContent = pubinoMatch[1];
+    
+    // Match the MAIN template specifically (not Provenance or Pubinfo templates)
+    const patterns = [
+        /nt:wasCreatedFromTemplate\s+<([^>]+)>(?!\w)/,  // Full URI in angle brackets
+        /nt:wasCreatedFromTemplate\s+([^\s;.,]+)(?=\s*[;.,\s])/  // Prefixed URI
+    ];
+    
+    for (const pattern of patterns) {
+        const match = pubinfoContent.match(pattern);
+        if (match) {
+            let uri = match[1];
+            
+            // Remove trailing punctuation if present
+            uri = uri.replace(/[;.,]+$/, '').trim();
+            
+            // Expand if it's a prefixed URI
+            let expandedUri = this.expandUri(uri);
+            
+            // IMPORTANT: Transform purl.org URLs to w3id.org for proper resolution
+            expandedUri = expandedUri.replace('http://purl.org/np/', 'https://w3id.org/np/');
+            expandedUri = expandedUri.replace('https://purl.org/np/', 'https://w3id.org/np/');
+            
+            // Add .trig extension for fetching
+            if (!expandedUri.match(/\.(trig|ttl|nq|jsonld)$/)) {
+                expandedUri += '.trig';
+            }
+            
+            console.log('Template URI found:', uri, '→ expanded to:', expandedUri);
+            
+            return expandedUri;
+        }
+    }
+    
+    return null;
+}
+
 }
