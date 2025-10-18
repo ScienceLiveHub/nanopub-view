@@ -132,7 +132,199 @@ class TemplateProcessor {
     }
 }
 
-// ============= NANOPUB PARSER =============
+// ============= LABEL FETCHER =============
+class LabelFetcher {
+    constructor() {
+        this.cache = new Map();
+        this.pendingRequests = new Map();
+        
+        // Hardcoded labels for common predicates to avoid fetching
+        this.commonLabels = {
+            'http://purl.org/dc/terms/creator': 'Creator',
+            'http://purl.org/dc/terms/created': 'Created',
+            'http://purl.org/dc/terms/description': 'Description',
+            'http://purl.org/dc/terms/title': 'Title',
+            'http://purl.org/dc/terms/license': 'License',
+            'http://www.w3.org/2000/01/rdf-schema#label': 'Label',
+            'http://www.w3.org/1999/02/22-rdf-syntax-ns#type': 'Type',
+            'http://xmlns.com/foaf/0.1/name': 'Name',
+            'http://www.w3.org/ns/prov#wasAttributedTo': 'Was Attributed To',
+            'http://www.w3.org/ns/prov#wasDerivedFrom': 'Was Derived From',
+            'http://www.w3.org/ns/prov#generatedAtTime': 'Generated At Time'
+        };
+    }
+
+    async getLabel(uri, localLabels = {}) {
+        if (!uri) return '';
+        
+        // Strategy 1: Check local labels (from nanopub/template)
+        if (localLabels[uri]) {
+            return localLabels[uri];
+        }
+        
+        // Strategy 2: Check cache
+        if (this.cache.has(uri)) {
+            return this.cache.get(uri);
+        }
+        
+        // Strategy 3: Check common labels
+        if (this.commonLabels[uri]) {
+            this.cache.set(uri, this.commonLabels[uri]);
+            return this.commonLabels[uri];
+        }
+        
+        // Strategy 4: Try to fetch from web (with deduplication)
+        try {
+            const label = await this.fetchRdfsLabel(uri);
+            if (label) {
+                this.cache.set(uri, label);
+                return label;
+            }
+        } catch (error) {
+            console.warn(`Failed to fetch label for ${uri}:`, error.message);
+        }
+        
+        // Strategy 5: Fallback to parsing URI
+        const parsedLabel = this.parseUriLabel(uri);
+        this.cache.set(uri, parsedLabel);
+        return parsedLabel;
+    }
+
+    async fetchRdfsLabel(uri) {
+        // Avoid fetching if already in progress
+        if (this.pendingRequests.has(uri)) {
+            return this.pendingRequests.get(uri);
+        }
+        
+        const promise = this._doFetch(uri);
+        this.pendingRequests.set(uri, promise);
+        
+        try {
+            const result = await promise;
+            return result;
+        } finally {
+            this.pendingRequests.delete(uri);
+        }
+    }
+
+    async _doFetch(uri) {
+        try {
+            const response = await fetch(uri, {
+                headers: {
+                    'Accept': 'text/turtle, application/rdf+xml, application/ld+json, text/plain'
+                },
+                mode: 'cors'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const contentType = response.headers.get('content-type') || '';
+            const text = await response.text();
+            
+            // Parse based on content type
+            if (contentType.includes('turtle') || contentType.includes('ttl')) {
+                return this.parseTurtleLabel(text, uri);
+            } else if (contentType.includes('rdf+xml')) {
+                return this.parseRdfXmlLabel(text, uri);
+            } else if (contentType.includes('json')) {
+                return this.parseJsonLdLabel(text, uri);
+            } else {
+                return this.parseTurtleLabel(text, uri);
+            }
+        } catch (error) {
+            return null;
+        }
+    }
+
+    parseTurtleLabel(text, uri) {
+        const patterns = [
+            new RegExp(`<${uri.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}>\\s+rdfs:label\\s+"([^"]+)"`, 'i'),
+            /rdfs:label\s+"([^"]+)"/i,
+            /<http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label>\s+"([^"]+)"/i
+        ];
+        
+        for (const pattern of patterns) {
+            const match = text.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        
+        return null;
+    }
+
+    parseRdfXmlLabel(text, uri) {
+        const labelMatch = text.match(/<rdfs:label[^>]*>([^<]+)<\/rdfs:label>/i);
+        if (labelMatch && labelMatch[1]) {
+            return labelMatch[1];
+        }
+        return null;
+    }
+
+    parseJsonLdLabel(text, uri) {
+        try {
+            const data = JSON.parse(text);
+            
+            if (data['rdfs:label']) {
+                return data['rdfs:label'];
+            }
+            if (data['http://www.w3.org/2000/01/rdf-schema#label']) {
+                const label = data['http://www.w3.org/2000/01/rdf-schema#label'];
+                return typeof label === 'object' ? label['@value'] : label;
+            }
+            if (data['@graph']) {
+                for (const node of data['@graph']) {
+                    if (node['@id'] === uri && node['rdfs:label']) {
+                        return node['rdfs:label'];
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to parse JSON-LD:', e);
+        }
+        return null;
+    }
+
+    parseUriLabel(uri) {
+        const parts = uri.split(/[#\/]/);
+        let label = parts[parts.length - 1];
+        
+        if (!label && parts.length > 1) {
+            label = parts[parts.length - 2];
+        }
+        
+        label = label
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^has/, 'Has')
+            .replace(/[_-]/g, ' ')
+            .trim()
+            .replace(/\s+/g, ' ');
+        
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+        
+        return label;
+    }
+
+    async batchGetLabels(uris, localLabels = {}) {
+        const results = new Map();
+        const promises = uris.map(async uri => {
+            const label = await this.getLabel(uri, localLabels);
+            results.set(uri, label);
+        });
+        
+        await Promise.all(promises);
+        return results;
+    }
+
+    clearCache() {
+        this.cache.clear();
+        this.pendingRequests.clear();
+    }
+}
+
+// ============= NANOPUB PARSER (ENHANCED) =============
 class NanopubParser {
     constructor(content, templateContent) {
         this.content = content;
@@ -144,6 +336,7 @@ class NanopubParser {
             pubinfo: []
         };
         this.template = null;
+        this.labelFetcher = new LabelFetcher(); // ADD THIS
     }
 
     parse() {
@@ -156,6 +349,43 @@ class NanopubParser {
         }
         
         return this.formatForPublication();
+    }
+
+    // NEW METHOD: Async version that fetches labels
+    async parseWithLabels() {
+        // Do normal parsing first
+        const data = this.parse();
+        
+        // Collect all predicates that need labels
+        const urisToFetch = new Set();
+        this.data.assertions.forEach(triple => {
+            if (triple.predicate.startsWith('http')) {
+                urisToFetch.add(triple.predicate);
+            }
+        });
+        
+        console.log(`Found ${urisToFetch.size} predicate URIs to fetch labels for:`, Array.from(urisToFetch));
+        
+        // Fetch labels for all URIs
+        const localLabels = this.template?.labels || {};
+        const fetchedLabels = await this.labelFetcher.batchGetLabels(
+            Array.from(urisToFetch), 
+            localLabels
+        );
+        
+        console.log('Fetched labels:', Object.fromEntries(fetchedLabels));
+        
+        // Merge fetched labels into template labels
+        if (this.template) {
+            fetchedLabels.forEach((label, uri) => {
+                if (!this.template.labels[uri]) {
+                    this.template.labels[uri] = label;
+                    console.log(`Added fetched label for ${uri}: ${label}`);
+                }
+            });
+        }
+        
+        return data;
     }
 
     extractPrefixes() {
@@ -540,6 +770,7 @@ class NanopubParser {
                     label: placeholder ? placeholder.label : 
                            this.template.labels[stmt.predicate] || 
                            this.getSimpleLabel(stmt.predicate),
+                    predicateUri: stmt.predicate, // ADD THIS LINE
                     values: [],
                     type: placeholder ? placeholder.types : ['literal'],
                     repeatable: stmt.repeatable,
@@ -567,6 +798,7 @@ class NanopubParser {
             if (!matched.has(triple)) {
                 structured.push({
                     label: this.template?.labels[triple.predicate] || this.getSimpleLabel(triple.predicate),
+                    predicateUri: triple.predicate, // ADD THIS LINE
                     values: [{
                         raw: triple.object,
                         display: entityLabels[triple.object] || triple.object

@@ -85,7 +85,7 @@ document.addEventListener('click', function(event) {
 });
 
 // ============= MAIN PROCESSING FUNCTION =============
-function processNanopub() {
+async function processNanopub() {
     const npContent = document.getElementById('npContent').value;
     const templateContent = document.getElementById('templateContent').value;
     
@@ -95,11 +95,17 @@ function processNanopub() {
     }
 
     document.getElementById('loading').classList.add('active');
+    document.getElementById('loading').textContent = 'Processing nanopublication...';
     document.getElementById('error').classList.remove('active');
     
     try {
         const parser = new NanopubParser(npContent, templateContent);
-        const data = parser.parse();
+        
+        // Update loading message
+        document.getElementById('loading').textContent = 'Fetching predicate labels from the web...';
+        
+        // Use parseWithLabels() to fetch labels from the web
+        const data = await parser.parseWithLabels();
         displayPublication(data);
     } catch (error) {
         console.error('Parse error:', error);
@@ -167,7 +173,12 @@ function displayPublication(data) {
             if (field.values.length === 0 && field.optional) return;
             
             html += `<div class="field-group">`;
-            html += `<span class="field-label">${field.label}:</span>`;
+            // Make the label clickable if we have a predicate URI
+            if (field.predicateUri) {
+                html += `<span class="field-label"><a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${field.label}</a>:</span>`;
+            } else {
+                html += `<span class="field-label">${field.label}:</span>`;
+            }
             html += `<div class="field-value">`;
             
             if (field.repeatable && field.values.length > 1) {
