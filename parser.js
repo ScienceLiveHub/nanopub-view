@@ -48,31 +48,95 @@ class TemplateProcessor {
         }
     }
 
-    extractStatementDefinitions() {
-        const stmtRegex = /(sub:st[\w-]+)[^.;]*rdf:subject\s+([^;\s]+)[^.;]*rdf:predicate\s+([^;\s]+)[^.;]*rdf:object\s+([^;\s.]+)/g;
-        let match;
+
+extractStatementDefinitions() {
+    // First, find all statement IDs that are repeatable/optional
+    const repeatableStatements = new Set();
+    const optionalStatements = new Set();
+    const groupedStatements = new Set();
+    
+    const typeRegex = /(sub:st[\w-]+)\s+a\s+([^;.]+)/g;
+    let match;
+    while ((match = typeRegex.exec(this.content)) !== null) {
+        const stmtId = match[1];
+        const types = match[2];
+        if (types.includes('nt:RepeatableStatement')) {
+            repeatableStatements.add(stmtId);
+        }
+        if (types.includes('nt:OptionalStatement')) {
+            optionalStatements.add(stmtId);
+        }
+        if (types.includes('nt:GroupedStatement')) {
+            groupedStatements.add(stmtId);
+        }
+    }
+    
+    console.log('Found repeatable statements:', Array.from(repeatableStatements));
+    
+    // Find all statement IDs
+    const stmtIds = new Set();
+    const allStmtRegex = /(sub:st[\w-]+)/g;
+    while ((match = allStmtRegex.exec(this.content)) !== null) {
+        if (match[1].startsWith('sub:st')) {
+            stmtIds.add(match[1]);
+        }
+    }
+    
+    console.log('All statement IDs found:', Array.from(stmtIds));
+    
+    // For each statement ID, extract its components
+    stmtIds.forEach(stmtId => {
+        // Look for: stmtId ... (stuff) ... until we see a line ending with period that's not inside <>
+        const lines = this.content.split('\n');
+        let inBlock = false;
+        let block = '';
         
-        while ((match = stmtRegex.exec(this.content)) !== null) {
-            const stmtId = match[1];
-            const subject = this.expandUri(match[2]);
-            const predicate = this.expandUri(match[3]);
-            const object = match[4];
+        for (let line of lines) {
+            if (line.includes(stmtId) && (line.includes('rdf:subject') || line.includes('rdf:predicate') || line.includes('rdf:object') || line.includes('a nt:'))) {
+                inBlock = true;
+            }
             
-            const isOptional = this.content.includes(stmtId + ' a nt:OptionalStatement');
-            const isRepeatable = this.content.includes(stmtId + ' a nt:RepeatableStatement');
-            const isGrouped = this.content.includes(stmtId + ' a nt:GroupedStatement');
+            if (inBlock) {
+                block += line + '\n';
+                // Check if line ends with period (and we're not inside angle brackets)
+                if (line.trim().endsWith('.') && !line.trim().endsWith('>.')) {
+                    break;
+                }
+            }
+        }
+        
+        if (!block) return;
+        
+        // Extract subject, predicate, object from this block
+        const subjectMatch = block.match(/rdf:subject\s+([^\s;.]+)/);
+        const predicateMatch = block.match(/rdf:predicate\s+(<[^>]+>|[^\s;.]+)/);
+        const objectMatch = block.match(/rdf:object\s+([^\s;.]+)/);
+        
+        if (subjectMatch && predicateMatch && objectMatch) {
+            const subject = this.expandUri(subjectMatch[1].trim());
+            const predicate = this.expandUri(predicateMatch[1].trim());
+            const object = objectMatch[1].trim();
             
             this.structure.statements[stmtId] = {
                 id: stmtId,
                 subject: subject,
                 predicate: predicate,
                 object: object,
-                optional: isOptional,
-                repeatable: isRepeatable,
-                grouped: isGrouped
+                optional: optionalStatements.has(stmtId),
+                repeatable: repeatableStatements.has(stmtId),
+                grouped: groupedStatements.has(stmtId)
             };
+            
+            console.log('Extracted statement:', stmtId, {
+                predicate: predicate,
+                repeatable: repeatableStatements.has(stmtId)
+            });
         }
-    }
+    });
+    
+    console.log('Extracted', Object.keys(this.structure.statements).length, 'statements from template');
+}
+
 
     extractPlaceholderDefinitions() {
         const placeholderRegex = /(sub:\w+)\s+a\s+([^;]+);[^}]*rdfs:label\s+"([^"]+)"/g;
@@ -137,21 +201,6 @@ class LabelFetcher {
     constructor() {
         this.cache = new Map();
         this.pendingRequests = new Map();
-        
-        // Hardcoded labels for common predicates to avoid fetching
-        this.commonLabels = {
-            'http://purl.org/dc/terms/creator': 'Creator',
-            'http://purl.org/dc/terms/created': 'Created',
-            'http://purl.org/dc/terms/description': 'Description',
-            'http://purl.org/dc/terms/title': 'Title',
-            'http://purl.org/dc/terms/license': 'License',
-            'http://www.w3.org/2000/01/rdf-schema#label': 'Label',
-            'http://www.w3.org/1999/02/22-rdf-syntax-ns#type': 'Type',
-            'http://xmlns.com/foaf/0.1/name': 'Name',
-            'http://www.w3.org/ns/prov#wasAttributedTo': 'Was Attributed To',
-            'http://www.w3.org/ns/prov#wasDerivedFrom': 'Was Derived From',
-            'http://www.w3.org/ns/prov#generatedAtTime': 'Generated At Time'
-        };
     }
 
     async getLabel(uri, localLabels = {}) {
@@ -167,13 +216,7 @@ class LabelFetcher {
             return this.cache.get(uri);
         }
         
-        // Strategy 3: Check common labels
-        if (this.commonLabels[uri]) {
-            this.cache.set(uri, this.commonLabels[uri]);
-            return this.commonLabels[uri];
-        }
-        
-        // Strategy 4: Try to fetch from web (with deduplication)
+        // Strategy 3: Try to fetch from web (with deduplication)
         try {
             const label = await this.fetchRdfsLabel(uri);
             if (label) {
@@ -181,10 +224,10 @@ class LabelFetcher {
                 return label;
             }
         } catch (error) {
-            console.warn(`Failed to fetch label for ${uri}:`, error.message);
+            // Silently fail - we'll use the fallback
         }
         
-        // Strategy 5: Fallback to parsing URI
+        // Strategy 4: Fallback to parsing URI
         const parsedLabel = this.parseUriLabel(uri);
         this.cache.set(uri, parsedLabel);
         return parsedLabel;
@@ -217,7 +260,7 @@ class LabelFetcher {
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                return null;
             }
             
             const contentType = response.headers.get('content-type') || '';
@@ -234,6 +277,7 @@ class LabelFetcher {
                 return this.parseTurtleLabel(text, uri);
             }
         } catch (error) {
+            // Silently return null for CORS and network errors
             return null;
         }
     }
@@ -282,7 +326,7 @@ class LabelFetcher {
                 }
             }
         } catch (e) {
-            console.warn('Failed to parse JSON-LD:', e);
+            // Silently fail
         }
         return null;
     }
@@ -336,56 +380,125 @@ class NanopubParser {
             pubinfo: []
         };
         this.template = null;
-        this.labelFetcher = new LabelFetcher(); // ADD THIS
+        this.labelFetcher = new LabelFetcher();
     }
 
     parse() {
         this.extractPrefixes();
-        this.parseAllStatements();
         
+        // Parse template FIRST if available
         if (this.templateContent) {
             const processor = new TemplateProcessor(this.templateContent, this.prefixes);
             this.template = processor.parse();
         }
         
+        // Then parse all statements (now we can check against the template)
+        this.parseAllStatements();
+        
         return this.formatForPublication();
     }
 
     // Async version that fetches labels
-    async parseWithLabels() {
-        // Do normal parsing first
-        const data = this.parse();
-        
-        // Collect all predicates that need labels
-        const urisToFetch = new Set();
-        this.data.assertions.forEach(triple => {
-            if (triple.predicate.startsWith('http')) {
-                urisToFetch.add(triple.predicate);
+
+async parseWithLabels() {
+    console.log('=== parseWithLabels START ===');
+    console.log('Template content exists?', !!this.templateContent);
+
+    this.extractPrefixes();
+    console.log('Prefixes extracted');
+    
+    // Parse template FIRST if available
+    if (this.templateContent) {
+        console.log('About to parse template...');
+        const processor = new TemplateProcessor(this.templateContent, this.prefixes);
+        this.template = processor.parse();
+        console.log('Template parsed. Statements:', this.template ? Object.keys(this.template.statements).length : 'NONE');
+    }
+    
+    console.log('About to parse assertions...');
+
+    // Then parse all statements (now we can check against the template)
+    this.parseAllStatements();
+    console.log('Assertions parsed');
+    
+    // Collect all predicates that need labels
+    const urisToFetch = new Set();
+    this.data.assertions.forEach(triple => {
+        if (triple.predicate.startsWith('http')) {
+            urisToFetch.add(triple.predicate);
+        }
+    });
+    
+    console.log(`Found ${urisToFetch.size} predicate URIs to fetch labels for:`, Array.from(urisToFetch));
+    
+    // Fetch labels for all URIs
+    const localLabels = this.template?.labels || {};
+    const fetchedLabels = await this.labelFetcher.batchGetLabels(
+        Array.from(urisToFetch), 
+        localLabels
+    );
+    
+    console.log('Fetched labels:', Object.fromEntries(fetchedLabels));
+    
+    // Merge fetched labels into template labels
+    if (this.template) {
+        fetchedLabels.forEach((label, uri) => {
+            if (!this.template.labels[uri]) {
+                this.template.labels[uri] = label;
+                console.log(`Added fetched label for ${uri}: ${label}`);
             }
         });
-        
-        console.log(`Found ${urisToFetch.size} predicate URIs to fetch labels for:`, Array.from(urisToFetch));
-        
-        // Fetch labels for all URIs
-        const localLabels = this.template?.labels || {};
-        const fetchedLabels = await this.labelFetcher.batchGetLabels(
-            Array.from(urisToFetch), 
-            localLabels
-        );
-        
-        console.log('Fetched labels:', Object.fromEntries(fetchedLabels));
-        
-        // Merge fetched labels into template labels
-        if (this.template) {
-            fetchedLabels.forEach((label, uri) => {
-                if (!this.template.labels[uri]) {
-                    this.template.labels[uri] = label;
-                    console.log(`Added fetched label for ${uri}: ${label}`);
-                }
-            });
+    }
+    
+    // ADD THIS LINE - it was missing!
+    return this.formatForPublication();
+}
+
+    extractTemplateUri() {
+        // Make sure prefixes are extracted first
+        if (Object.keys(this.prefixes).length === 0) {
+            this.extractPrefixes();
         }
         
-        return data;
+        // Look in pubinfo section for wasCreatedFromTemplate
+        const pubinoMatch = this.content.match(/sub:pubinfo\s*\{([^}]+)\}/s);
+        if (!pubinoMatch) return null;
+        
+        const pubinfoContent = pubinoMatch[1];
+        
+        // Match the MAIN template specifically (not Provenance or Pubinfo templates)
+        const patterns = [
+            /nt:wasCreatedFromTemplate\s+<([^>]+)>(?!\w)/,  // Full URI in angle brackets
+            /nt:wasCreatedFromTemplate\s+([^\s;.,]+)(?=\s*[;.,\s])/  // Prefixed URI
+        ];
+        
+        for (const pattern of patterns) {
+            const match = pubinfoContent.match(pattern);
+            if (match) {
+                let uri = match[1];
+                
+                // Remove trailing punctuation if present
+                uri = uri.replace(/[;.,]+$/, '').trim();
+                
+                // Expand if it's a prefixed URI
+                let expandedUri = this.expandUri(uri);
+                
+                // IMPORTANT: Transform purl.org URLs to w3id.org for proper resolution
+                expandedUri = expandedUri.replace('http://purl.org/np/', 'https://w3id.org/np/');
+                expandedUri = expandedUri.replace('https://purl.org/np/', 'https://w3id.org/np/');
+                
+                // Add .trig extension for fetching
+                if (!expandedUri.match(/\.(trig|ttl|nq|jsonld)$/)) {
+                    expandedUri += '.trig';
+                }
+                
+                console.log('Template URI found:', uri, '→ expanded to:', expandedUri);
+                
+                return expandedUri;
+            }
+        }
+        
+        return null;
     }
 
     extractPrefixes() {
@@ -419,46 +532,173 @@ class NanopubParser {
             this.data.pubinfo = this.parseTriples(pubinfoMatch[1]);
         }
     }
+// Check if a predicate is repeatable in the template
+isRepeatablePredicate(predicate) {
+    console.log('Checking repeatable for:', predicate);
+    
+    if (!this.template || !this.template.statements) {
+        console.log('No template');
+        return false;
+    }
+    
+    for (let stmtId in this.template.statements) {
+        const stmt = this.template.statements[stmtId];
+        if (stmt.predicate === predicate) {
+            console.log('Found', stmtId, 'repeatable:', stmt.repeatable);
+            return stmt.repeatable === true;
+        }
+    }
+    
+    return false;
+}
 
-    parseTriples(content) {
-        const triples = [];
-        const statements = this.splitStatements(content);
+parseTriples(content) {
+    console.log('PARSING TRIPLES - template exists:', !!this.template);
+    if (this.template && this.template.statements) {
+        console.log('Template has', Object.keys(this.template.statements).length, 'statements');
+    }
+    
+    const triples = [];
+    const statements = this.splitStatements(content);
+    console.log('Processing', statements.length, 'statements from nanopub');
+    
+    statements.forEach(statement => {
+        const trimmed = statement.trim();
+        if (!trimmed) return;
         
-        statements.forEach(statement => {
-            const trimmed = statement.trim();
-            if (!trimmed) return;
+        const lines = trimmed.split(/;\s*\n\s*/);
+        let currentSubject = null;
+        
+        lines.forEach((line, index) => {
+            line = line.trim();
+            if (!line) return;
             
-            const lines = trimmed.split(/;\s*\n\s*/);
-            let currentSubject = null;
-            
-            lines.forEach((line, index) => {
-                line = line.trim();
-                if (!line) return;
-                
-                if (index === 0) {
-                    const match = line.match(/^(\S+)\s+(\S+)\s+(.+)$/s);
-                    if (match) {
-                        currentSubject = this.expandUri(match[1]);
-                        triples.push({
-                            subject: currentSubject,
-                            predicate: this.expandUri(match[2]),
-                            object: this.cleanObject(match[3])
+            if (index === 0) {
+                // First line: subject predicate object(s)
+                const match = line.match(/^(\S+)\s+(\S+)\s+(.+)$/s);
+                if (match) {
+                    currentSubject = this.expandUri(match[1]);
+                    const predicate = this.expandUri(match[2]);
+                    const objectsPart = match[3];
+                    
+                    // Check if this predicate is repeatable in the template
+                    const isRepeatable = this.isRepeatablePredicate(predicate);
+                    
+                    if (isRepeatable) {
+                        // Handle comma-separated objects
+                        const objects = this.splitObjects(objectsPart);
+                        console.log('Splitting', objects.length, 'objects for repeatable predicate:', predicate);
+                        objects.forEach(obj => {
+                            triples.push({
+                                subject: currentSubject,
+                                predicate: predicate,
+                                object: this.cleanObject(obj)
+                            });
                         });
-                    }
-                } else {
-                    const match = line.match(/^(\S+)\s+(.+)$/s);
-                    if (match && currentSubject) {
+                    } else {
+                        // Single object
                         triples.push({
                             subject: currentSubject,
-                            predicate: this.expandUri(match[1]),
-                            object: this.cleanObject(match[2])
+                            predicate: predicate,
+                            object: this.cleanObject(objectsPart)
                         });
                     }
                 }
-            });
+            } else {
+                // Continuation line: predicate object(s)
+                const match = line.match(/^(\S+)\s+(.+)$/s);
+                if (match && currentSubject) {
+                    const predicate = this.expandUri(match[1]);
+                    const objectsPart = match[2];
+                    
+                    // Check if this predicate is repeatable in the template
+                    const isRepeatable = this.isRepeatablePredicate(predicate);
+                    
+                    if (isRepeatable) {
+                        // Handle comma-separated objects
+                        const objects = this.splitObjects(objectsPart);
+                        console.log('Splitting', objects.length, 'objects for repeatable predicate:', predicate);
+                        objects.forEach(obj => {
+                            triples.push({
+                                subject: currentSubject,
+                                predicate: predicate,
+                                object: this.cleanObject(obj)
+                            });
+                        });
+                    } else {
+                        // Single object
+                        triples.push({
+                            subject: currentSubject,
+                            predicate: predicate,
+                            object: this.cleanObject(objectsPart)
+                        });
+                    }
+                }
+            }
         });
+    });
+    
+    console.log('FINISHED parsing. Created', triples.length, 'triples');
+    return triples;
+}
+
+    // Split comma-separated objects while respecting quotes and angle brackets
+    splitObjects(objectsPart) {
+        const objects = [];
+        let current = '';
+        let inQuotes = false;
+        let inTripleQuotes = false;
+        let inAngleBrackets = false;
         
-        return triples;
+        for (let i = 0; i < objectsPart.length; i++) {
+            const char = objectsPart[i];
+            const next2 = objectsPart.substr(i, 3);
+            
+            // Handle triple quotes
+            if (next2 === '"""') {
+                inTripleQuotes = !inTripleQuotes;
+                current += '"""';
+                i += 2;
+                continue;
+            }
+            
+            // Handle regular quotes (only if not in triple quotes)
+            if (char === '"' && !inTripleQuotes && objectsPart[i-1] !== '\\') {
+                inQuotes = !inQuotes;
+                current += char;
+                continue;
+            }
+            
+            // Handle angle brackets
+            if (char === '<' && !inQuotes && !inTripleQuotes) {
+                inAngleBrackets = true;
+                current += char;
+                continue;
+            }
+            if (char === '>' && !inQuotes && !inTripleQuotes) {
+                inAngleBrackets = false;
+                current += char;
+                continue;
+            }
+            
+            // Split on comma only if not inside quotes or angle brackets
+            if (char === ',' && !inQuotes && !inTripleQuotes && !inAngleBrackets) {
+                if (current.trim()) {
+                    objects.push(current.trim());
+                }
+                current = '';
+                continue;
+            }
+            
+            current += char;
+        }
+        
+        // Add the last object
+        if (current.trim()) {
+            objects.push(current.trim());
+        }
+        
+        return objects;
     }
 
     splitStatements(content) {
@@ -500,23 +740,28 @@ class NanopubParser {
         if (!obj) return '';
         obj = obj.trim();
         
+        // Remove trailing semicolon or period
         if (obj.endsWith('.') || obj.endsWith(';')) {
             obj = obj.slice(0, -1).trim();
         }
         
+        // Handle datatype annotations
         if (obj.includes('^^')) {
             const parts = obj.split('^^');
             obj = parts[0];
         }
         
+        // Handle triple-quoted strings
         if (obj.startsWith('"""') && obj.includes('"""', 3)) {
             return obj.slice(3, obj.lastIndexOf('"""'));
         }
         
+        // Handle regular quoted strings
         if (obj.startsWith('"') && obj.includes('"', 1)) {
             return obj.slice(1, obj.lastIndexOf('"'));
         }
         
+        // Expand URIs
         return this.expandUri(obj);
     }
 
@@ -679,98 +924,127 @@ class NanopubParser {
         return result;
     }
 
-    matchTemplateToData(entityLabels) {
-        const structured = [];
-        const matched = new Set();
+matchTemplateToData(entityLabels) {
+    const structured = [];
+    const matched = new Set();
+    
+    let mainEntityPlaceholder = null;
+    let mainEntityActualValue = null;
+    let mainEntityLabel = null;
+    
+    const placeholderOccurrences = {};
+    
+    this.template.statementOrder.forEach(stmtId => {
+        const stmt = this.template.statements[stmtId];
+        if (!stmt) return;
         
-        let mainEntityPlaceholder = null;
-        let mainEntityActualValue = null;
-        let mainEntityLabel = null;
-        
-        const placeholderOccurrences = {};
-        
-        this.template.statementOrder.forEach(stmtId => {
-            const stmt = this.template.statements[stmtId];
-            if (!stmt) return;
-            
-            if (stmt.object && stmt.object.startsWith('sub:')) {
-                placeholderOccurrences[stmt.object] = (placeholderOccurrences[stmt.object] || 0) + 1;
-            }
-            
-            if (stmt.subject && stmt.subject.startsWith('sub:') && stmt.subject !== 'CREATOR') {
-                placeholderOccurrences[stmt.subject] = (placeholderOccurrences[stmt.subject] || 0) + 1;
-            }
-        });
-        
-        for (let [placeholder, count] of Object.entries(placeholderOccurrences)) {
-            if (count > 1) {
-                mainEntityPlaceholder = placeholder;
-                mainEntityLabel = this.template.placeholders[placeholder]?.label || 'Subject';
-                
-                this.data.assertions.forEach(triple => {
-                    if (triple.object.startsWith('http')) {
-                        const showsAsObject = this.data.assertions.some(t => 
-                            t.object === triple.object && 
-                            t.predicate === this.template.statements[this.template.statementOrder[0]]?.predicate
-                        );
-                        
-                        const showsAsSubject = this.data.assertions.some(t => 
-                            t.subject === triple.object
-                        );
-                        
-                        if (showsAsObject && showsAsSubject && !mainEntityActualValue) {
-                            mainEntityActualValue = triple.object;
-                        }
-                    }
-                });
-                
-                break;
-            }
+        if (stmt.object && stmt.object.startsWith('sub:')) {
+            placeholderOccurrences[stmt.object] = (placeholderOccurrences[stmt.object] || 0) + 1;
         }
         
-        if (mainEntityActualValue) {
-            const field = {
-                statementId: 'main-entity',
-                label: mainEntityLabel,
-                values: [{
-                    raw: mainEntityActualValue,
-                    display: entityLabels[mainEntityActualValue] || mainEntityActualValue
-                }],
-                type: ['ExternalUriPlaceholder'],
-                isMainEntity: true
-            };
-            
-            structured.push(field);
-            matched.add(mainEntityActualValue);
+        if (stmt.subject && stmt.subject.startsWith('sub:') && stmt.subject !== 'CREATOR') {
+            placeholderOccurrences[stmt.subject] = (placeholderOccurrences[stmt.subject] || 0) + 1;
         }
-        
-        this.template.statementOrder.forEach(stmtId => {
-            const stmt = this.template.statements[stmtId];
-            if (!stmt) return;
-            
-            const matchingTriples = [];
+    });
+    
+    for (let [placeholder, count] of Object.entries(placeholderOccurrences)) {
+        if (count > 1) {
+            mainEntityPlaceholder = placeholder;
+            mainEntityLabel = this.template.placeholders[placeholder]?.label || 'Subject';
             
             this.data.assertions.forEach(triple => {
-                if (triple.predicate !== stmt.predicate) return;
-                
-                if (triple.object === mainEntityActualValue) return;
-                
-                if (stmt.subject === 'CREATOR' || 
-                    stmt.subject.startsWith('sub:') ||
-                    triple.subject.includes(stmt.subject.replace('sub:', ''))) {
-                    matchingTriples.push(triple);
-                    matched.add(triple);
+                if (triple.object.startsWith('http')) {
+                    const showsAsObject = this.data.assertions.some(t => 
+                        t.object === triple.object && 
+                        t.predicate === this.template.statements[this.template.statementOrder[0]]?.predicate
+                    );
+                    
+                    const showsAsSubject = this.data.assertions.some(t => 
+                        t.subject === triple.object
+                    );
+                    
+                    if (showsAsObject && showsAsSubject && !mainEntityActualValue) {
+                        mainEntityActualValue = triple.object;
+                    }
                 }
             });
             
-            if (matchingTriples.length > 0 || !stmt.optional) {
-                const placeholder = this.template.placeholders[stmt.object];
+            break;
+        }
+    }
+    
+    if (mainEntityActualValue) {
+        const field = {
+            statementId: 'main-entity',
+            label: mainEntityLabel,
+            values: [{
+                raw: mainEntityActualValue,
+                display: entityLabels[mainEntityActualValue] || mainEntityActualValue
+            }],
+            type: ['ExternalUriPlaceholder'],
+            isMainEntity: true
+        };
+        
+        structured.push(field);
+        matched.add(mainEntityActualValue);
+    }
+    
+    this.template.statementOrder.forEach(stmtId => {
+        const stmt = this.template.statements[stmtId];
+        if (!stmt) return;
+        
+        const matchingTriples = [];
+        
+        this.data.assertions.forEach(triple => {
+            if (triple.predicate !== stmt.predicate) return;
+            
+            if (triple.object === mainEntityActualValue) return;
+            
+            // Handle CREATOR subject specially
+            if (stmt.subject === 'CREATOR') {
+                // Check if the triple's subject is a creator (ORCID)
+                if (triple.subject.includes('orcid.org')) {
+                    matchingTriples.push(triple);
+                    matched.add(triple);
+                }
+            } else if (stmt.subject.startsWith('sub:')) {
+                // Placeholder subject - match any
+                matchingTriples.push(triple);
+                matched.add(triple);
+            } else if (triple.subject.includes(stmt.subject.replace('sub:', ''))) {
+                matchingTriples.push(triple);
+                matched.add(triple);
+            }
+        });
+        
+        if (matchingTriples.length > 0) {
+            const placeholder = this.template.placeholders[stmt.object];
+            
+            // Check if we already have a field for this predicate
+            const existingField = structured.find(f => f.predicateUri === stmt.predicate);
+            
+            if (existingField && stmt.repeatable) {
+                // Merge into existing field
+                matchingTriples.forEach(triple => {
+                    let displayValue = triple.object;
+                    if (entityLabels[triple.object]) {
+                        displayValue = entityLabels[triple.object];
+                    }
+                    
+                    existingField.values.push({
+                        raw: triple.object,
+                        display: displayValue,
+                        subject: triple.subject
+                    });
+                });
+            } else {
+                // Create new field only if we have matching triples
                 const field = {
                     statementId: stmtId,
                     label: placeholder ? placeholder.label : 
                            this.template.labels[stmt.predicate] || 
                            this.getSimpleLabel(stmt.predicate),
-                    predicateUri: stmt.predicate, // ADD THIS LINE
+                    predicateUri: stmt.predicate,
                     values: [],
                     type: placeholder ? placeholder.types : ['literal'],
                     repeatable: stmt.repeatable,
@@ -792,77 +1066,30 @@ class NanopubParser {
                 
                 structured.push(field);
             }
-        });
-        
-        this.data.assertions.forEach(triple => {
-            if (!matched.has(triple)) {
-                structured.push({
-                    label: this.template?.labels[triple.predicate] || this.getSimpleLabel(triple.predicate),
-                    predicateUri: triple.predicate, // ADD THIS LINE
-                    values: [{
-                        raw: triple.object,
-                        display: entityLabels[triple.object] || triple.object
-                    }],
-                    type: ['literal'],
-                    unmatched: true
-                });
-            }
-        });
-        
-        return structured;
-    }
+        }
+    });
+    
+    this.data.assertions.forEach(triple => {
+        if (!matched.has(triple)) {
+            structured.push({
+                label: this.template?.labels[triple.predicate] || this.getSimpleLabel(triple.predicate),
+                predicateUri: triple.predicate,
+                values: [{
+                    raw: triple.object,
+                    display: entityLabels[triple.object] || triple.object
+                }],
+                type: ['literal'],
+                unmatched: true
+            });
+        }
+    });
+    
+    return structured;
+}
 
     getSimpleLabel(uri) {
         const parts = uri.split(/[#\/]/);
         const label = parts[parts.length - 1];
         return label.replace(/([A-Z])/g, ' $1').replace(/^has/, 'Has').trim();
     }
-
-extractTemplateUri() {
-    // Make sure prefixes are extracted first
-    if (Object.keys(this.prefixes).length === 0) {
-        this.extractPrefixes();
-    }
-    
-    // Look in pubinfo section for wasCreatedFromTemplate
-    const pubinoMatch = this.content.match(/sub:pubinfo\s*\{([^}]+)\}/s);
-    if (!pubinoMatch) return null;
-    
-    const pubinfoContent = pubinoMatch[1];
-    
-    // Match the MAIN template specifically (not Provenance or Pubinfo templates)
-    const patterns = [
-        /nt:wasCreatedFromTemplate\s+<([^>]+)>(?!\w)/,  // Full URI in angle brackets
-        /nt:wasCreatedFromTemplate\s+([^\s;.,]+)(?=\s*[;.,\s])/  // Prefixed URI
-    ];
-    
-    for (const pattern of patterns) {
-        const match = pubinfoContent.match(pattern);
-        if (match) {
-            let uri = match[1];
-            
-            // Remove trailing punctuation if present
-            uri = uri.replace(/[;.,]+$/, '').trim();
-            
-            // Expand if it's a prefixed URI
-            let expandedUri = this.expandUri(uri);
-            
-            // IMPORTANT: Transform purl.org URLs to w3id.org for proper resolution
-            expandedUri = expandedUri.replace('http://purl.org/np/', 'https://w3id.org/np/');
-            expandedUri = expandedUri.replace('https://purl.org/np/', 'https://w3id.org/np/');
-            
-            // Add .trig extension for fetching
-            if (!expandedUri.match(/\.(trig|ttl|nq|jsonld)$/)) {
-                expandedUri += '.trig';
-            }
-            
-            console.log('Template URI found:', uri, '→ expanded to:', expandedUri);
-            
-            return expandedUri;
-        }
-    }
-    
-    return null;
-}
-
 }
