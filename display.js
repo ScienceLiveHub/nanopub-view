@@ -87,13 +87,6 @@ document.addEventListener('click', function(event) {
 // ============= MAIN PROCESSING FUNCTION =============
 async function processNanopub() {
     const npContent = document.getElementById('npContent').value;
-    // DEBUG: Log the full content
-    console.log('=== RAW NANOPUB CONTENT ===');
-    console.log('Total length:', npContent.length);
-    console.log('Triple quote count:', (npContent.match(/"""/g) || []).length);
-    console.log('Last 200 chars:', npContent.slice(-200));
-    console.log('===========================');
-
     let templateContent = document.getElementById('templateContent').value;
     
     if (!npContent.trim()) {
@@ -182,11 +175,115 @@ async function processNanopub() {
 
 // ============= DISPLAY FUNCTIONS =============
 function displayPublication(data) {
+    console.log('=== displayPublication START ===');
+    console.log('Title:', data.title);
+    console.log('Structured data fields:', data.structuredData?.length);
+    
+    // Extract main entity info if present
+    let mainEntityUri = null;
+    let mainEntityDisplay = null;
+    
+    if (data.structuredData && data.structuredData.length > 0) {
+        const mainEntityField = data.structuredData.find(f => f.isMainEntity);
+        console.log('Found main entity field?', !!mainEntityField);
+        if (mainEntityField && mainEntityField.values.length > 0) {
+            mainEntityUri = mainEntityField.values[0].raw;
+            mainEntityDisplay = mainEntityField.values[0].display;
+            console.log('Main entity URI:', mainEntityUri);
+            console.log('Main entity display:', mainEntityDisplay);
+        }
+    }
+    
+    // Make title clickable if it contains the main entity
+    let titleHtml = data.title || 'Nanopublication Document';
+    console.log('Original title:', titleHtml);
+    
+    if (mainEntityUri) {
+        console.log('Attempting to link main entity in title...');
+        let replaced = false;
+        
+        // For DOIs, try multiple patterns
+        if (mainEntityUri.includes('doi.org/')) {
+            const doiPart = mainEntityUri.split('doi.org/')[1];
+            console.log('DOI part:', doiPart);
+            
+            // Clean the display value of any extra spaces
+            const cleanDisplay = mainEntityDisplay ? mainEntityDisplay.replace(/\s+/g, '') : '';
+            console.log('Clean display:', cleanDisplay);
+            
+            // Try to find the DOI part in the title in various formats
+            const patterns = [
+                cleanDisplay,       // Try the cleaned display value first
+                doiPart,            // Try the full DOI part
+                doiPart.split('/').pop(),  // Try just the last part
+            ];
+            
+            console.log('Trying patterns:', patterns);
+            
+            for (let pattern of patterns) {
+                if (pattern && titleHtml.includes(pattern)) {
+                    console.log('Pattern matched:', pattern);
+                    titleHtml = titleHtml.replace(
+                        pattern,
+                        `<a href="${mainEntityUri}" target="_blank" title="Open DOI: ${doiPart}" class="title-link">${pattern}</a>`
+                    );
+                    replaced = true;
+                    break;
+                }
+            }
+        } else {
+            // For non-DOI URIs, try multiple strategies
+            const patterns = [];
+            
+            // 1. Try the display value
+            if (mainEntityDisplay) {
+                patterns.push(mainEntityDisplay);
+            }
+            
+            // 2. Try parsing the URI for common patterns
+            if (mainEntityUri.startsWith('http')) {
+                // Get the last part of the path (after last /)
+                const uriParts = mainEntityUri.split('/').filter(p => p);
+                const lastPart = uriParts[uriParts.length - 1];
+                if (lastPart) patterns.push(lastPart);
+                
+                // Get the part before last / (useful for paths like /TR/shacl/)
+                if (uriParts.length > 1) {
+                    const secondLast = uriParts[uriParts.length - 2];
+                    if (secondLast) patterns.push(secondLast);
+                }
+                
+                // Try the fragment (after #)
+                if (mainEntityUri.includes('#')) {
+                    const fragment = mainEntityUri.split('#')[1];
+                    if (fragment) patterns.push(fragment);
+                }
+            }
+            
+            console.log('Trying patterns for URI:', patterns);
+            
+            for (let pattern of patterns) {
+                if (pattern && titleHtml.includes(pattern)) {
+                    console.log('Pattern matched:', pattern);
+                    titleHtml = titleHtml.replace(
+                        pattern,
+                        `<a href="${mainEntityUri}" target="_blank" class="title-link">${pattern}</a>`
+                    );
+                    replaced = true;
+                    break;
+                }
+            }
+        }
+        
+        console.log('Title linking successful?', replaced);
+        console.log('Final title HTML:', titleHtml);
+    }
+    
     let html = `
         <div class="pub-header">
             ${data.templateTag ? `<span class="template-type">${data.templateTag}</span>` : ''}
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-top: ${data.templateTag ? '15px' : '0'};">
-                <h2 class="pub-title">${data.title || 'Nanopublication Document'}</h2>
+                <h2 class="pub-title">${titleHtml}</h2>
                 <div class="share-button" style="margin-top: 5px;">
                     <button class="share-icon" onclick="toggleShareDropdown(event)" title="Share nanopublication"><i class="fas fa-share-alt"></i></button>
                     <div class="share-dropdown" id="shareDropdown">
@@ -215,38 +312,21 @@ function displayPublication(data) {
     `;
 
     if (data.structuredData && data.structuredData.length > 0) {
-        let commonSubject = null;
-        if (data.commonSubject) {
-            commonSubject = data.commonSubject;
-            html += `<div class="field-group">`;
-            let subjectLabel = data.commonSubjectLabel || 'Subject';
-            html += `<span class="field-label">${subjectLabel}:</span>`;
-            html += `<div class="field-value">`;
-            if (commonSubject.startsWith('http')) {
-                let displayText = commonSubject;
-                if (commonSubject.includes('doi.org/')) {
-                    displayText = 'DOI: ' + commonSubject.split('doi.org/')[1];
-                }
-                html += `<a href="${commonSubject}" target="_blank">${displayText}</a>`;
-            } else {
-                html += commonSubject;
-            }
-            html += `</div></div>`;
-        }
-
         data.structuredData.forEach(field => {
             if (field.values.length === 0 && field.optional) return;
             
-            // Display main entity field prominently
-            if (field.isMainEntity) {
-                html += `<div class="field-group main-entity-group">`;
-                html += `<div class="field-value">`;
-                field.values.forEach((val, index) => {
-                    if (index > 0) html += '<br>';
-                    html += formatValue(val, field.type, field.isDecodedUri);
-                });
-                html += `</div></div>`;
-                return; // Skip to next field
+            // Show main entity field if it's decoded (like AIDA sentences) or substantial content
+            // Only skip simple URI main entities
+            const isDecodedContent = field.isDecodedUri || (field.values.length > 0 && 
+                typeof field.values[0].display === 'string' && field.values[0].display.length > 50);
+            
+            if (field.isMainEntity && !isDecodedContent) {
+                console.log('Skipping simple main entity field in body');
+                return;
+            }
+            
+            if (field.isMainEntity && isDecodedContent) {
+                console.log('Showing main entity field with substantial content');
             }
             
             html += `<div class="field-group">`;
@@ -254,7 +334,6 @@ function displayPublication(data) {
             if (field.isSubjectField) {
                 html += `<span class="field-label">${field.label}:</span>`;
             } else if (field.predicateUri) {
-                // Check if label is an object with description
                 if (typeof field.label === 'object' && field.label !== null && field.label.label) {
                     const label = field.label.label;
                     const description = field.label.description;
@@ -350,29 +429,16 @@ function displayPublication(data) {
 }
 
 // ============= UTILITY FUNCTIONS =============
-// ============= ENHANCED FORMAT VALUE FUNCTION =============
-// ============= DEBUG VERSION OF formatValue =============
-// This adds extra logging to see what's happening
-
 function formatValue(val, types, isDecodedUri) {
     const isUri = val.raw && val.raw.startsWith('http');
     const isLongLiteral = types && types.includes('LongLiteralPlaceholder');
     
-    // Log the full value for debugging
-    console.log('=== formatValue DEBUG ===');
-    console.log('val.raw length:', val.raw ? val.raw.length : 0);
-    console.log('val.display length:', typeof val.display === 'string' ? val.display.length : 'not a string');
-    console.log('isLongLiteral:', isLongLiteral);
-    console.log('Full display value:', val.display);
-    
     // Detect content type for long literals
     const contentType = isLongLiteral ? detectContentType(val.display) : null;
     
-    console.log('Detected contentType:', contentType);
-    console.log('========================');
-    
     if (isDecodedUri) {
-        return `<div class="decoded-sentence">${escapeHtml(getDisplayText(val.display))}</div>`;
+        // For decoded URIs (like AIDA sentences), show the full text without truncation
+        return `<div class="decoded-sentence">${escapeHtml(getRawDisplayText(val.display))}</div>`;
     } else if (isUri) {
         // Check if display value is an object (from Wikidata)
         if (typeof val.display === 'object' && val.display !== null && val.display.label) {
@@ -396,19 +462,17 @@ function formatValue(val, types, isDecodedUri) {
             return `<a href="${val.raw}" target="_blank">${escapeHtml(displayText)}</a>`;
         }
     } else if (contentType) {
-        console.log('Using formatContentByType with:', contentType);
         // Handle different content types specially
         return formatContentByType(val, contentType);
     } else if (isLongLiteral || (typeof val.display === 'string' && val.display.length > 100)) {
-        console.log('Using formatGenericLongLiteral');
         // Generic long literal
         return formatGenericLongLiteral(val);
     } else {
-        return `<div class="literal-value">${escapeHtml(getDisplayText(val.display))}</div>`;
+        return `<div class="literal-value">${escapeHtml(getRawDisplayText(val.display))}</div>`;
     }
 }
+
 // ============= CONTENT TYPE DETECTION =============
-// Add this new function to detect content types
 function detectContentType(text) {
     if (typeof text !== 'string') return null;
     
@@ -468,10 +532,9 @@ function detectContentType(text) {
 }
 
 // ============= FORMAT BY CONTENT TYPE =============
-// Add this new function to format different content types
 function formatContentByType(val, contentType) {
     const uniqueId = `content-${contentType}-${Math.random().toString(36).substr(2, 9)}`;
-    const text = getDisplayText(val.display);
+    const text = getRawDisplayText(val.display);
     const escapedText = escapeHtml(text);
     
     const typeConfig = {
@@ -536,10 +599,9 @@ function formatContentByType(val, contentType) {
 }
 
 // ============= FORMAT GENERIC LONG LITERAL =============
-// Add this new function for generic long text
 function formatGenericLongLiteral(val) {
     const uniqueId = 'long-' + Math.random().toString(36).substr(2, 9);
-    const text = getDisplayText(val.display);
+    const text = getRawDisplayText(val.display);
     
     return `
         <div class="long-literal-container">
@@ -552,9 +614,6 @@ function formatGenericLongLiteral(val) {
 }
 
 // ============= TOGGLE FUNCTIONS =============
-// Add these new toggle functions
-
-// Toggle content visibility (works for any content type)
 function toggleContent(id) {
     const element = document.getElementById(id);
     const button = element.previousElementSibling.querySelector('.content-toggle i');
@@ -572,7 +631,6 @@ function toggleContent(id) {
     }
 }
 
-// Copy content to clipboard
 function copyContent(id) {
     const element = document.getElementById(id);
     const text = element.textContent;
@@ -592,7 +650,6 @@ function copyContent(id) {
     });
 }
 
-// Toggle long literal visibility
 function toggleLongLiteral(id) {
     const element = document.getElementById(id);
     const button = element.nextElementSibling.querySelector('i');
@@ -609,12 +666,30 @@ function toggleLongLiteral(id) {
         button.classList.add('fa-chevron-down');
     }
 }
+
+// NEW FUNCTION: Get raw display text without any truncation
+function getRawDisplayText(display) {
+    if (typeof display === 'object' && display !== null && display.label) {
+        return display.label;
+    }
+    if (typeof display === 'string') {
+        return display;  // Return full string without any splitting
+    }
+    return String(display);
+}
+
+// UPDATED FUNCTION: Get display text with smart truncation for URIs only
 function getDisplayText(display) {
     if (typeof display === 'object' && display !== null && display.label) {
         return display.label;
     }
     if (typeof display === 'string') {
-        return display.split(' - ')[0];
+        // Only split on " - " for URI labels that look like "Something - Description"
+        // This pattern is typically only seen in parsed URI labels, not in AIDA sentences
+        if (display.includes(' - ') && display.length < 100) {
+            return display.split(' - ')[0];
+        }
+        return display;
     }
     return String(display);
 }
