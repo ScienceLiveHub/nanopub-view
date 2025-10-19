@@ -735,3 +735,116 @@ textarea:focus {
     opacity: 0.8;
     border-bottom-color: var(--primary-hover);
 }
+
+/* ============= CITATION SECTION ============= */
+.citation-section {
+    background: var(--bg-light);
+    border-top: 1px solid var(--border);
+    padding: 30px;
+    margin-top: 20px;
+}
+
+.citation-section h3 {
+    font-size: 1.2em;
+    color: var(--secondary);
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.citation-formats {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.citation-format-btn {
+    padding: 8px 16px;
+    background: white;
+    border: 2px solid var(--border);
+    color: var(--text-dark);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.citation-format-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.citation-format-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.citation-display {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    position: relative;
+}
+
+#citation-text {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.95em;
+    line-height: 1.6;
+    color: var(--text-dark);
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.citation-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.citation-copy-btn {
+    padding: 10px 20px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.citation-copy-btn:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.citation-copy-btn:active {
+    transform: translateY(0);
+}
+
+/* Responsive design for citation */
+@media (max-width: 768px) {
+    .citation-section {
+        padding: 20px;
+    }
+    
+    .citation-formats {
+        flex-direction: column;
+    }
+    
+    .citation-format-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
