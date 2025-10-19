@@ -21,6 +21,7 @@ class TemplateProcessor {
         this.extractStatementDefinitions();
         this.extractPlaceholderDefinitions();
         this.extractLabels();
+        this.structure.groupedStatements = this.extractGroupedStatements();
         
         return this.structure;
     }
@@ -110,7 +111,7 @@ extractStatementDefinitions() {
         // Extract subject, predicate, object from this block
         const subjectMatch = block.match(/rdf:subject\s+([^\s;.]+)/);
         const predicateMatch = block.match(/rdf:predicate\s+(<[^>]+>|[^\s;.]+)/);
-        const objectMatch = block.match(/rdf:object\s+([^\s;.]+)/);
+        const objectMatch = block.match(/rdf:object\s+(<[^>]+>|[^\s;.]+)/);
         
         if (subjectMatch && predicateMatch && objectMatch) {
             const subject = this.expandUri(subjectMatch[1].trim());
@@ -138,28 +139,69 @@ extractStatementDefinitions() {
 }
 
 
-    extractPlaceholderDefinitions() {
-        const placeholderRegex = /(sub:\w+)\s+a\s+([^;]+);[^}]*rdfs:label\s+"([^"]+)"/g;
-        let match;
+extractPlaceholderDefinitions() {
+    console.log('=== EXTRACTING PLACEHOLDER DEFINITIONS ===');
+    
+    // Split content into blocks by period+newline
+    const lines = this.content.split('\n');
+    let currentBlock = '';
+    let inPlaceholderBlock = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
         
-        while ((match = placeholderRegex.exec(this.content)) !== null) {
-            const placeholderId = match[1];
-            const types = match[2].split(',').map(t => t.trim());
-            const label = match[3];
+        // Check if line starts a placeholder definition
+        if (line.match(/^sub:\w+\s+a\s+.*Placeholder/)) {
+            inPlaceholderBlock = true;
+            currentBlock = line + '\n';
+        } else if (inPlaceholderBlock) {
+            currentBlock += line + '\n';
             
-            const placeholderTypes = [];
-            types.forEach(type => {
-                if (type.includes('Placeholder')) {
-                    placeholderTypes.push(type.split(':').pop());
-                }
-            });
-            
-            this.structure.placeholders[placeholderId] = {
-                types: placeholderTypes,
-                label: label
-            };
+            // Check if block ends (line ends with period)
+            if (line.endsWith('.')) {
+                // Process this block
+                this.processPlaceholderBlock(currentBlock);
+                currentBlock = '';
+                inPlaceholderBlock = false;
+            }
         }
     }
+    
+    console.log('Final placeholders:', this.structure.placeholders);
+    console.log('==========================================');
+}
+
+processPlaceholderBlock(block) {
+    // Extract placeholder ID
+    const idMatch = block.match(/^(sub:\w+)/);
+    if (!idMatch) return;
+    
+    const placeholderId = idMatch[1];
+    
+    // Extract types
+    const typesMatch = block.match(/a\s+([^;]+);/);
+    const types = typesMatch ? typesMatch[1].split(',').map(t => t.trim()) : [];
+    
+    // Extract label
+    const labelMatch = block.match(/rdfs:label\s+"([^"]+)"/);
+    const label = labelMatch ? labelMatch[1] : '';
+    
+    console.log('Found placeholder:', placeholderId, 'raw types:', types, 'label:', label);
+    
+    const placeholderTypes = [];
+    types.forEach(type => {
+        if (type.includes('Placeholder')) {
+            placeholderTypes.push(type.split(':').pop());
+        }
+    });
+    
+    console.log('  Processed types:', placeholderTypes);
+    
+    this.structure.placeholders[placeholderId] = {
+        types: placeholderTypes,
+        label: label
+    };
+}
 
     extractLabels() {
         const labelRegex = /(<[^>]+>|[\w]+:[\w-]+)\s+rdfs:label\s+"([^"]+)"/g;
@@ -172,28 +214,82 @@ extractStatementDefinitions() {
         }
     }
 
-    expandUri(uri) {
-        if (!uri) return uri;
-        uri = uri.trim();
-        
-        if (uri === 'nt:CREATOR') return 'CREATOR';
-        if (uri.startsWith('<') && uri.endsWith('>')) {
-            return uri.slice(1, -1);
-        }
-        if (uri.startsWith('sub:')) {
-            return uri;
-        }
-        
-        const colonIndex = uri.indexOf(':');
-        if (colonIndex > 0) {
-            const prefix = uri.substring(0, colonIndex);
-            const local = uri.substring(colonIndex + 1);
-            if (this.prefixes[prefix]) {
-                return this.prefixes[prefix] + local;
-            }
-        }
+expandUri(uri) {
+    if (!uri) return '';
+    uri = uri.trim();
+    
+    // Special case: "a" is shorthand for rdf:type in Turtle/TriG
+    if (uri === 'a') {
+        return 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+    }
+    
+    if (uri === 'nt:CREATOR') return 'CREATOR';
+    
+    if (uri.startsWith('<') && uri.endsWith('>')) {
+        return uri.slice(1, -1);
+    }
+    
+    if (uri.startsWith('sub:')) {
         return uri;
     }
+    
+    const colonIndex = uri.indexOf(':');
+    if (colonIndex > 0) {
+        const prefix = uri.substring(0, colonIndex);
+        const local = uri.substring(colonIndex + 1);
+        if (this.prefixes[prefix]) {
+            return this.prefixes[prefix] + local;
+        }
+    }
+    return uri;
+
+}
+
+extractGroupedStatements() {
+    const groups = {};
+    
+    // Find all grouped statement definitions
+    // Pattern: sub:st16 a nt:GroupedStatement; nt:hasStatement sub:st10, sub:st11 .
+    const lines = this.content.split('\n');
+    let currentGroupId = null;
+    let inGroupBlock = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        // Check if line starts a grouped statement
+        if (line.match(/^(sub:st\w+)\s+a.*GroupedStatement/)) {
+            const match = line.match(/^(sub:st\w+)/);
+            if (match) {
+                currentGroupId = match[1];
+                inGroupBlock = true;
+                groups[currentGroupId] = {
+                    statements: [],
+                    optional: line.includes('OptionalStatement')
+                };
+            }
+        }
+        
+        // Look for nt:hasStatement in the block
+        if (inGroupBlock && line.includes('nt:hasStatement')) {
+            const statementsMatch = line.match(/nt:hasStatement\s+([^;.]+)/);
+            if (statementsMatch) {
+                const statements = statementsMatch[1].split(',').map(s => s.trim());
+                groups[currentGroupId].statements = statements;
+            }
+        }
+        
+        // End of block
+        if (inGroupBlock && line.endsWith('.')) {
+            inGroupBlock = false;
+            currentGroupId = null;
+        }
+    }
+    
+    console.log('Extracted grouped statements:', groups);
+    return groups;
+}
+
 }
 
 // ============= LABEL FETCHER =============
@@ -413,6 +509,8 @@ async parseWithLabels() {
         const processor = new TemplateProcessor(this.templateContent, this.prefixes);
         this.template = processor.parse();
         console.log('Template parsed. Statements:', this.template ? Object.keys(this.template.statements).length : 'NONE');
+        console.log('Template labels:', this.template ? this.template.labels : 'NONE');  // ADD THIS LINE
+
     }
     
     console.log('About to parse assertions...');
@@ -581,28 +679,15 @@ parseTriples(content) {
                     const predicate = this.expandUri(match[2]);
                     const objectsPart = match[3];
                     
-                    // Check if this predicate is repeatable in the template
-                    const isRepeatable = this.isRepeatablePredicate(predicate);
-                    
-                    if (isRepeatable) {
-                        // Handle comma-separated objects
-                        const objects = this.splitObjects(objectsPart);
-                        console.log('Splitting', objects.length, 'objects for repeatable predicate:', predicate);
-                        objects.forEach(obj => {
-                            triples.push({
-                                subject: currentSubject,
-                                predicate: predicate,
-                                object: this.cleanObject(obj)
-                            });
-                        });
-                    } else {
-                        // Single object
+                    // ALWAYS split comma-separated objects (it's Turtle syntax for multiple triples)
+                    const objects = this.splitObjects(objectsPart);
+                    objects.forEach(obj => {
                         triples.push({
                             subject: currentSubject,
                             predicate: predicate,
-                            object: this.cleanObject(objectsPart)
+                            object: this.cleanObject(obj)
                         });
-                    }
+                    });
                 }
             } else {
                 // Continuation line: predicate object(s)
@@ -611,28 +696,15 @@ parseTriples(content) {
                     const predicate = this.expandUri(match[1]);
                     const objectsPart = match[2];
                     
-                    // Check if this predicate is repeatable in the template
-                    const isRepeatable = this.isRepeatablePredicate(predicate);
-                    
-                    if (isRepeatable) {
-                        // Handle comma-separated objects
-                        const objects = this.splitObjects(objectsPart);
-                        console.log('Splitting', objects.length, 'objects for repeatable predicate:', predicate);
-                        objects.forEach(obj => {
-                            triples.push({
-                                subject: currentSubject,
-                                predicate: predicate,
-                                object: this.cleanObject(obj)
-                            });
-                        });
-                    } else {
-                        // Single object
+                    // ALWAYS split comma-separated objects (it's Turtle syntax for multiple triples)
+                    const objects = this.splitObjects(objectsPart);
+                    objects.forEach(obj => {
                         triples.push({
                             subject: currentSubject,
                             predicate: predicate,
-                            object: this.cleanObject(objectsPart)
+                            object: this.cleanObject(obj)
                         });
-                    }
+                    });
                 }
             }
         });
@@ -765,25 +837,34 @@ parseTriples(content) {
         return this.expandUri(obj);
     }
 
-    expandUri(uri) {
-        if (!uri) return '';
-        uri = uri.trim();
-        
-        if (uri.startsWith('<') && uri.endsWith('>')) {
-            return uri.slice(1, -1);
-        }
-        
-        const colonIndex = uri.indexOf(':');
-        if (colonIndex > 0) {
-            const prefix = uri.substring(0, colonIndex);
-            const local = uri.substring(colonIndex + 1);
-            if (this.prefixes[prefix]) {
-                return this.prefixes[prefix] + local;
-            }
-        }
+// Inside TemplateProcessor class
+expandUri(uri) {
+    if (!uri) return uri;
+    uri = uri.trim();
+    
+    // Special case: "a" is shorthand for rdf:type in Turtle/TriG
+    if (uri === 'a') {
+        return 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+    }
+    
+    if (uri === 'nt:CREATOR') return 'CREATOR';
+    if (uri.startsWith('<') && uri.endsWith('>')) {
+        return uri.slice(1, -1);
+    }
+    if (uri.startsWith('sub:')) {
         return uri;
     }
-
+    
+    const colonIndex = uri.indexOf(':');
+    if (colonIndex > 0) {
+        const prefix = uri.substring(0, colonIndex);
+        const local = uri.substring(colonIndex + 1);
+        if (this.prefixes[prefix]) {
+            return this.prefixes[prefix] + local;
+        }
+    }
+    return uri;
+}
     formatForPublication() {
         const result = {
             uri: '',
@@ -807,6 +888,10 @@ parseTriples(content) {
         if (uriMatch) {
             result.uri = uriMatch[1];
         }
+// Copy all template labels to entityLabels
+    if (this.template && this.template.labels) {
+        Object.assign(result.entityLabels, this.template.labels);
+    }
 
         this.data.pubinfo.forEach(triple => {
             if (triple.predicate.includes('creator')) {
@@ -921,12 +1006,30 @@ parseTriples(content) {
             result.unmatchedAssertions = this.data.assertions;
         }
 
+console.log('=== STRUCTURED DATA ===');
+result.structuredData.forEach((field, index) => {
+    console.log(`Field ${index}:`, {
+        label: field.label,
+        values: field.values,
+        isMainEntity: field.isMainEntity
+    });
+});
+console.log('=======================');
+
         return result;
     }
+
+
 
 matchTemplateToData(entityLabels) {
     const structured = [];
     const matched = new Set();
+    
+    console.log('=== ALL ASSERTION TRIPLES ===');
+    this.data.assertions.forEach(triple => {
+        console.log('  Subject:', triple.subject, 'Predicate:', triple.predicate, 'Object:', triple.object.substring(0, 50));
+    });
+    console.log('=========================');
     
     let mainEntityPlaceholder = null;
     let mainEntityActualValue = null;
@@ -993,25 +1096,91 @@ matchTemplateToData(entityLabels) {
         const stmt = this.template.statements[stmtId];
         if (!stmt) return;
         
+        // Skip grouped statements - they'll be handled when processing their parent statements
+        const isGroupedStatement = this.template.groupedStatements && 
+                                    Object.values(this.template.groupedStatements).some(g => 
+                                        g.statements.includes(stmtId)
+                                    );
+        if (isGroupedStatement) {
+            console.log('Skipping grouped statement:', stmtId, '(will be processed with parent)');
+            return;
+        }
+        
+        console.log('Processing statement:', stmtId, 'predicate:', stmt.predicate, 'repeatable:', stmt.repeatable);
+        
         const matchingTriples = [];
+        
+        console.log('  Looking for triples with predicate:', stmt.predicate);
+        console.log('  Statement subject:', stmt.subject);
+        console.log('  Statement object placeholder:', stmt.object);
         
         this.data.assertions.forEach(triple => {
             if (triple.predicate !== stmt.predicate) return;
             
-            if (triple.object === mainEntityActualValue) return;
+            console.log('    Found triple with matching predicate. Subject:', triple.subject, 'Object:', triple.object);
+            
+            if (triple.object === mainEntityActualValue) {
+                console.log('    Skipped: object is mainEntity');
+                matched.add(triple); 
+                return;
+            }
+            
+            // Check if the statement object is a literal URI (not a placeholder starting with sub:)
+            if (stmt.object && !stmt.object.startsWith('sub:')) {
+                // This is a literal URI or prefixed URI, not a placeholder
+                const expectedObject = this.expandUri(stmt.object);
+                if (triple.object !== expectedObject) {
+                    console.log('    Skipped: object', triple.object, 'does not match expected literal', expectedObject);
+                    return;
+                }
+                console.log('    Matched: object matches literal');
+            }
+            
+            // Check if object matches the expected placeholder value
+            if (stmt.object && stmt.object.startsWith('sub:')) {
+                const placeholder = this.template.placeholders[stmt.object];
+                console.log('    Checking placeholder', stmt.object, 'types:', placeholder?.types);
+
+                if (placeholder && placeholder.types.includes('RestrictedChoicePlaceholder')) {
+                    // For restricted choice placeholders, check if the triple's object is one of the possible values
+                    const possibleValues = this.getPossibleValuesForPlaceholder(stmt.object);
+                    console.log('    Placeholder', stmt.object, 'has possible values:', possibleValues);
+                    if (possibleValues.length > 0 && !possibleValues.includes(triple.object)) {
+                        console.log('    Skipped: object', triple.object, 'not in possible values');
+                        return; // Skip this triple, it doesn't match this statement's expected values
+                    }
+                }
+                
+                // NEW: Check if this placeholder has grouped statements that need to be satisfied
+                const groupedConstraints = this.findGroupedConstraintsForPlaceholder(stmt.object);
+                if (groupedConstraints.length > 0) {
+                    console.log('    Placeholder', stmt.object, 'has grouped constraints:', groupedConstraints);
+                    
+                    // Check if triple.object (the URI) satisfies all grouped constraints
+                    const satisfiesConstraints = this.checkGroupedConstraints(triple.object, groupedConstraints);
+                    if (!satisfiesConstraints) {
+                        console.log('    Skipped: object', triple.object, 'does not satisfy grouped constraints');
+                        return;
+                    }
+                    console.log('    Matched: object satisfies grouped constraints');
+                }
+            }
             
             // Handle CREATOR subject specially
             if (stmt.subject === 'CREATOR') {
                 // Check if the triple's subject is a creator (ORCID)
                 if (triple.subject.includes('orcid.org')) {
+                    console.log('    Matched: CREATOR subject');
                     matchingTriples.push(triple);
                     matched.add(triple);
                 }
             } else if (stmt.subject.startsWith('sub:')) {
                 // Placeholder subject - match any
+                console.log('    Matched: placeholder subject');
                 matchingTriples.push(triple);
                 matched.add(triple);
             } else if (triple.subject.includes(stmt.subject.replace('sub:', ''))) {
+                console.log('    Matched: subject contains statement subject');
                 matchingTriples.push(triple);
                 matched.add(triple);
             }
@@ -1027,8 +1196,12 @@ matchTemplateToData(entityLabels) {
                 // Merge into existing field
                 matchingTriples.forEach(triple => {
                     let displayValue = triple.object;
+                    console.log('Looking up label for object:', triple.object);
                     if (entityLabels[triple.object]) {
                         displayValue = entityLabels[triple.object];
+                        console.log('  Found label:', displayValue);
+                    } else {
+                        console.log('  No label found');
                     }
                     
                     existingField.values.push({
@@ -1041,7 +1214,7 @@ matchTemplateToData(entityLabels) {
                 // Create new field only if we have matching triples
                 const field = {
                     statementId: stmtId,
-                    label: placeholder ? placeholder.label : 
+                    label: (placeholder && placeholder.label) ? placeholder.label  : 
                            this.template.labels[stmt.predicate] || 
                            this.getSimpleLabel(stmt.predicate),
                     predicateUri: stmt.predicate,
@@ -1053,8 +1226,12 @@ matchTemplateToData(entityLabels) {
                 
                 matchingTriples.forEach(triple => {
                     let displayValue = triple.object;
+                    console.log('Looking up label for object:', triple.object);
                     if (entityLabels[triple.object]) {
                         displayValue = entityLabels[triple.object];
+                        console.log('  Found label:', displayValue);
+                    } else {
+                        console.log('  No label found');
                     }
                     
                     field.values.push({
@@ -1087,9 +1264,124 @@ matchTemplateToData(entityLabels) {
     return structured;
 }
 
+
+
+
     getSimpleLabel(uri) {
         const parts = uri.split(/[#\/]/);
         const label = parts[parts.length - 1];
         return label.replace(/([A-Z])/g, ' $1').replace(/^has/, 'Has').trim();
     }
+
+
+getPossibleValuesForPlaceholder(placeholderId) {
+    const values = [];
+    const placeholder = this.template.placeholders[placeholderId];
+    if (!placeholder) return values;
+    
+    // Find where this placeholder definition starts
+    const startIndex = this.templateContent.indexOf(placeholderId);
+    if (startIndex === -1) return values;
+    
+    // Find the end (next period that's not inside angle brackets or quotes)
+    let endIndex = startIndex;
+    let inAngleBrackets = false;
+    let inQuotes = false;
+    for (let i = startIndex; i < this.templateContent.length; i++) {
+        const char = this.templateContent[i];
+        if (char === '"' && this.templateContent[i-1] !== '\\') inQuotes = !inQuotes;
+        if (char === '<' && !inQuotes) inAngleBrackets = true;
+        if (char === '>' && !inQuotes) inAngleBrackets = false;
+        if (char === '.' && !inAngleBrackets && !inQuotes && this.templateContent[i+1]?.match(/\s/)) {
+            endIndex = i;
+            break;
+        }
+    }
+    
+    const block = this.templateContent.substring(startIndex, endIndex + 1);
+    
+    // Look for nt:possibleValue in the block
+    if (!block.includes('nt:possibleValue')) return values;
+    
+    // Extract ALL URIs from the entire block (both <URI> and prefix:local format)
+    const uriMatches = block.match(/<https:\/\/[^>]+>|<http:\/\/[^>]+>/g);
+    
+    if (uriMatches) {
+        // Filter to only URIs that appear after "nt:possibleValue"
+        const possibleValueIndex = block.indexOf('nt:possibleValue');
+        const afterPossibleValue = block.substring(possibleValueIndex);
+        const relevantUris = afterPossibleValue.match(/<https:\/\/[^>]+>|<http:\/\/[^>]+>/g);
+        
+        if (relevantUris) {
+            relevantUris.forEach(uri => {
+                // Remove angle brackets and expand
+                const cleanUri = uri.slice(1, -1);
+                values.push(cleanUri);
+            });
+        }
+    }
+    
+    return values;
+}
+
+// Find grouped constraints for a placeholder
+findGroupedConstraintsForPlaceholder(placeholderId) {
+    const constraints = [];
+    
+    if (!this.template.groupedStatements) return constraints;
+    
+    // Look through all grouped statements
+    for (let groupId in this.template.groupedStatements) {
+        const group = this.template.groupedStatements[groupId];
+        
+        // Check if any statement in this group uses the placeholder as subject
+        const relatedStatements = group.statements.filter(stmtId => {
+            const stmt = this.template.statements[stmtId];
+            return stmt && stmt.subject === placeholderId;
+        });
+        
+        if (relatedStatements.length > 0) {
+            constraints.push({
+                groupId: groupId,
+                statements: relatedStatements
+            });
+        }
+    }
+    
+    return constraints;
+}
+
+// Check if a URI satisfies all grouped constraints
+checkGroupedConstraints(uri, groupedConstraints) {
+    // For each group of constraints
+    for (let constraint of groupedConstraints) {
+        // Check if the URI satisfies ALL statements in this group
+        const satisfiesGroup = constraint.statements.every(stmtId => {
+            const stmt = this.template.statements[stmtId];
+            if (!stmt) return false;
+            
+            // Find a triple with this URI as subject and matching predicate
+            const matchingTriple = this.data.assertions.find(triple => {
+                if (triple.subject !== uri) return false;
+                if (triple.predicate !== stmt.predicate) return false;
+                
+                // If the statement has a literal object, check if it matches
+                if (stmt.object && !stmt.object.startsWith('sub:')) {
+                    const expectedObject = this.expandUri(stmt.object);
+                    return triple.object === expectedObject;
+                }
+                
+                // Otherwise just check predicate match
+                return true;
+            });
+            
+            return matchingTriple !== undefined;
+        });
+        
+        if (!satisfiesGroup) return false;
+    }
+    
+    return true;
+}
+
 }
