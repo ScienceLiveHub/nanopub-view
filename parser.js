@@ -509,7 +509,7 @@ async parseWithLabels() {
         const processor = new TemplateProcessor(this.templateContent, this.prefixes);
         this.template = processor.parse();
         console.log('Template parsed. Statements:', this.template ? Object.keys(this.template.statements).length : 'NONE');
-        console.log('Template labels:', this.template ? this.template.labels : 'NONE');  // ADD THIS LINE
+        console.log('Template labels:', this.template ? this.template.labels : 'NONE');
 
     }
     
@@ -519,15 +519,21 @@ async parseWithLabels() {
     this.parseAllStatements();
     console.log('Assertions parsed');
     
-    // Collect all predicates that need labels
+    // Collect all URIs that need labels (subjects, predicates, objects)
     const urisToFetch = new Set();
     this.data.assertions.forEach(triple => {
         if (triple.predicate.startsWith('http')) {
             urisToFetch.add(triple.predicate);
         }
+        if (triple.subject.startsWith('http')) {
+            urisToFetch.add(triple.subject);
+        }
+        if (triple.object.startsWith('http')) {
+            urisToFetch.add(triple.object);
+        }
     });
     
-    console.log(`Found ${urisToFetch.size} predicate URIs to fetch labels for:`, Array.from(urisToFetch));
+    console.log(`Found ${urisToFetch.size} URIs to fetch labels for:`, Array.from(urisToFetch));
     
     // Fetch labels for all URIs
     const localLabels = this.template?.labels || {};
@@ -966,6 +972,9 @@ matchTemplateToData(entityLabels) {
     });
     console.log('=========================');
     
+    // Build a map of placeholder -> actual values encountered
+    const placeholderValues = new Map();
+    
     let mainEntityPlaceholder = null;
     let mainEntityActualValue = null;
     let mainEntityLabel = null;
@@ -1025,6 +1034,7 @@ matchTemplateToData(entityLabels) {
         
         structured.push(field);
         matched.add(mainEntityActualValue);
+        placeholderValues.set(mainEntityPlaceholder, new Set([mainEntityActualValue]));
     }
     
     this.template.statementOrder.forEach(stmtId => {
@@ -1049,8 +1059,37 @@ matchTemplateToData(entityLabels) {
         console.log('  Statement subject:', stmt.subject);
         console.log('  Statement object placeholder:', stmt.object);
         
+        // Check if the predicate itself is a placeholder
+        const predicateIsPlaceholder = stmt.predicate.startsWith('sub:');
+        let expectedPredicates = null;
+        
+        if (predicateIsPlaceholder) {
+            expectedPredicates = placeholderValues.get(stmt.predicate);
+            console.log('  Predicate is a placeholder:', stmt.predicate);
+            console.log('  Expected predicates:', expectedPredicates ? Array.from(expectedPredicates) : 'any (first occurrence)');
+        }
+        
+        // Determine what values the subject placeholder should have
+        let expectedSubjects = null;
+        if (stmt.subject.startsWith('sub:') && stmt.subject !== 'CREATOR') {
+            expectedSubjects = placeholderValues.get(stmt.subject);
+            console.log('  Expected subjects for', stmt.subject, ':', expectedSubjects ? Array.from(expectedSubjects) : 'not yet determined');
+        }
+        
         this.data.assertions.forEach(triple => {
-            if (triple.predicate !== stmt.predicate) return;
+            // Handle predicate matching
+            if (predicateIsPlaceholder) {
+                // If predicate is a placeholder and we have expected values, check against them
+                if (expectedPredicates && expectedPredicates.size > 0) {
+                    if (!expectedPredicates.has(triple.predicate)) {
+                        return; // Skip this triple
+                    }
+                }
+                // Otherwise, accept any predicate (first occurrence of this placeholder)
+            } else {
+                // Literal predicate - must match exactly
+                if (triple.predicate !== stmt.predicate) return;
+            }
             
             console.log('    Found triple with matching predicate. Subject:', triple.subject, 'Object:', triple.object);
             
@@ -1086,7 +1125,7 @@ matchTemplateToData(entityLabels) {
                     }
                 }
                 
-                // NEW: Check if this placeholder has grouped statements that need to be satisfied
+                // NEW: Check if this placeholder has grouped constraints that need to be satisfied
                 const groupedConstraints = this.findGroupedConstraintsForPlaceholder(stmt.object);
                 if (groupedConstraints.length > 0) {
                     console.log('    Placeholder', stmt.object, 'has grouped constraints:', groupedConstraints);
@@ -1101,7 +1140,7 @@ matchTemplateToData(entityLabels) {
                 }
             }
             
-            // Handle CREATOR subject specially
+            // Handle subject matching more carefully
             if (stmt.subject === 'CREATOR') {
                 // Check if the triple's subject is a creator (ORCID)
                 if (triple.subject.includes('orcid.org')) {
@@ -1110,10 +1149,22 @@ matchTemplateToData(entityLabels) {
                     matched.add(triple);
                 }
             } else if (stmt.subject.startsWith('sub:')) {
-                // Placeholder subject - match any
-                console.log('    Matched: placeholder subject');
-                matchingTriples.push(triple);
-                matched.add(triple);
+                // Placeholder subject - check if we've already resolved this placeholder
+                if (expectedSubjects && expectedSubjects.size > 0) {
+                    // We know what value(s) this placeholder should have
+                    if (expectedSubjects.has(triple.subject)) {
+                        console.log('    Matched: subject matches expected placeholder value');
+                        matchingTriples.push(triple);
+                        matched.add(triple);
+                    } else {
+                        console.log('    Skipped: subject', triple.subject, 'not in expected values', Array.from(expectedSubjects));
+                    }
+                } else {
+                    // First time seeing this placeholder - accept and record the value
+                    console.log('    Matched: first occurrence of placeholder subject');
+                    matchingTriples.push(triple);
+                    matched.add(triple);
+                }
             } else if (triple.subject.includes(stmt.subject.replace('sub:', ''))) {
                 console.log('    Matched: subject contains statement subject');
                 matchingTriples.push(triple);
@@ -1122,10 +1173,107 @@ matchTemplateToData(entityLabels) {
         });
         
         if (matchingTriples.length > 0) {
-            const placeholder = this.template.placeholders[stmt.object];
+            console.log('Found', matchingTriples.length, 'matching triples for statement', stmtId);
+            
+            // Update placeholder values based on what we found
+            
+            // Record predicate placeholder values
+            if (stmt.predicate && stmt.predicate.startsWith('sub:')) {
+                if (!placeholderValues.has(stmt.predicate)) {
+                    placeholderValues.set(stmt.predicate, new Set());
+                }
+                matchingTriples.forEach(triple => {
+                    placeholderValues.get(stmt.predicate).add(triple.predicate);
+                });
+            }
+            
+            // Record object placeholder values
+            if (stmt.object && stmt.object.startsWith('sub:')) {
+                if (!placeholderValues.has(stmt.object)) {
+                    placeholderValues.set(stmt.object, new Set());
+                }
+                matchingTriples.forEach(triple => {
+                    placeholderValues.get(stmt.object).add(triple.object);
+                });
+            }
+            
+            // Record subject placeholder values
+            if (stmt.subject && stmt.subject.startsWith('sub:') && stmt.subject !== 'CREATOR') {
+                if (!placeholderValues.has(stmt.subject)) {
+                    placeholderValues.set(stmt.subject, new Set());
+                }
+                matchingTriples.forEach(triple => {
+                    placeholderValues.get(stmt.subject).add(triple.subject);
+                });
+            }
+            
+            // Get placeholder definitions
+            const subjectPlaceholder = this.template.placeholders[stmt.subject];
+            const objectPlaceholder = this.template.placeholders[stmt.object];
+            const predicatePlaceholder = this.template.placeholders[stmt.predicate];
+            
+            // Get the actual predicate URI from the triples (when predicate is a placeholder)
+            const actualPredicate = stmt.predicate.startsWith('sub:') ? 
+                (matchingTriples[0]?.predicate || stmt.predicate) : stmt.predicate;
+            
+            console.log('Creating fields for statement', stmtId);
+            console.log('  Subject placeholder?', stmt.subject, subjectPlaceholder ? 'YES' : 'NO');
+            console.log('  Main entity?', stmt.subject === mainEntityPlaceholder);
+            
+            // If subject is a placeholder (and not already shown as main entity), create a field for it
+            if (stmt.subject && stmt.subject.startsWith('sub:') && stmt.subject !== 'CREATOR' && 
+                stmt.subject !== mainEntityPlaceholder && subjectPlaceholder) {
+                
+                console.log('  Should create subject field');
+                
+                // Check if we haven't already created a field for this subject placeholder
+                const existingSubjectField = structured.find(f => 
+                    f.placeholderId === stmt.subject && f.isSubjectField
+                );
+                
+                console.log('  Existing subject field?', existingSubjectField ? 'YES' : 'NO');
+                
+                if (!existingSubjectField) {
+                    const subjectField = {
+                        statementId: stmtId + '-subject',
+                        placeholderId: stmt.subject,
+                        label: subjectPlaceholder.label || 'Subject',
+                        values: [],
+                        type: subjectPlaceholder.types,
+                        isSubjectField: true
+                    };
+                    
+                    // Get unique subjects from matching triples
+                    const uniqueSubjects = new Set();
+                    matchingTriples.forEach(triple => {
+                        uniqueSubjects.add(triple.subject);
+                    });
+                    
+                    console.log('  Unique subjects found:', Array.from(uniqueSubjects));
+                    
+                    uniqueSubjects.forEach(subjectUri => {
+                        let displayValue = subjectUri;
+                        console.log('  Looking up label for subject:', subjectUri);
+                        if (entityLabels[subjectUri]) {
+                            displayValue = entityLabels[subjectUri];
+                            console.log('    Found label:', displayValue);
+                        } else {
+                            console.log('    No label found');
+                        }
+                        
+                        subjectField.values.push({
+                            raw: subjectUri,
+                            display: displayValue
+                        });
+                    });
+                    
+                    console.log('  Adding subject field with', subjectField.values.length, 'values');
+                    structured.push(subjectField);
+                }
+            }
             
             // Check if we already have a field for this predicate
-            const existingField = structured.find(f => f.predicateUri === stmt.predicate);
+            const existingField = structured.find(f => f.predicateUri === actualPredicate);
             
             if (existingField && stmt.repeatable) {
                 // Merge into existing field
@@ -1146,15 +1294,33 @@ matchTemplateToData(entityLabels) {
                     });
                 });
             } else {
+                // Determine the label to use
+                let fieldLabel;
+                
+                // Priority 1: If we have a label for the actual predicate URI, use that
+                if (this.template.labels[actualPredicate]) {
+                    fieldLabel = this.template.labels[actualPredicate];
+                }
+                // Priority 2: If object has a placeholder with a label, use that
+                else if (objectPlaceholder && objectPlaceholder.label) {
+                    fieldLabel = objectPlaceholder.label;
+                }
+                // Priority 3: If predicate is a placeholder and has a label, use that
+                else if (predicatePlaceholder && predicatePlaceholder.label) {
+                    fieldLabel = predicatePlaceholder.label;
+                }
+                // Priority 4: Generate from URI
+                else {
+                    fieldLabel = this.getSimpleLabel(actualPredicate);
+                }
+                
                 // Create new field only if we have matching triples
                 const field = {
                     statementId: stmtId,
-                    label: (placeholder && placeholder.label) ? placeholder.label  : 
-                           this.template.labels[stmt.predicate] || 
-                           this.getSimpleLabel(stmt.predicate),
-                    predicateUri: stmt.predicate,
+                    label: fieldLabel,
+                    predicateUri: actualPredicate,
                     values: [],
-                    type: placeholder ? placeholder.types : ['literal'],
+                    type: objectPlaceholder ? objectPlaceholder.types : ['literal'],
                     repeatable: stmt.repeatable,
                     optional: stmt.optional
                 };
