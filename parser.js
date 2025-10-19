@@ -933,74 +933,9 @@ expandUri(uri) {
             result.title = this.template.title;
         }
 
-        if (this.template && this.template.statementOrder.length > 0) {
-            const subjects = new Set(this.data.assertions.map(t => t.subject));
-            if (subjects.size === 1) {
-                const subject = Array.from(subjects)[0];
-                if (subject.startsWith('http') && !subject.includes('/np/') && !subject.includes('orcid.org')) {
-                    result.commonSubject = subject;
-                    
-                    for (let stmtId in this.template.statements) {
-                        const stmt = this.template.statements[stmtId];
-                        if (stmt.subject && stmt.subject.startsWith('sub:')) {
-                            const placeholder = this.template.placeholders[stmt.subject];
-                            if (placeholder && placeholder.label) {
-                                result.commonSubjectLabel = placeholder.label;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if (!result.commonSubject) {
-                const objectPlaceholders = new Map();
-                for (let stmtId of this.template.statementOrder) {
-                    const stmt = this.template.statements[stmtId];
-                    if (stmt && stmt.object && stmt.object.startsWith('sub:')) {
-                        const placeholder = this.template.placeholders[stmt.object];
-                        if (placeholder && placeholder.types.includes('ExternalUriPlaceholder')) {
-                            objectPlaceholders.set(stmt.object, placeholder);
-                        }
-                    }
-                }
-                
-                for (let [placeholderId, placeholder] of objectPlaceholders) {
-                    let isAlsoSubject = false;
-                    for (let stmtId in this.template.statements) {
-                        const stmt = this.template.statements[stmtId];
-                        if (stmt.subject === placeholderId) {
-                            isAlsoSubject = true;
-                            break;
-                        }
-                    }
-                    
-                    if (isAlsoSubject) {
-                        for (let triple of this.data.assertions) {
-                            if (triple.object.startsWith('http') && !triple.object.includes('/np/')) {
-                                const appearsAsSubject = this.data.assertions.some(t => t.subject === triple.object);
-                                if (appearsAsSubject) {
-                                    result.commonSubject = triple.object;
-                                    result.commonSubjectLabel = placeholder.label;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if (!result.commonSubjectLabel) {
-                if (this.template?.title) {
-                    if (this.template.title.toLowerCase().includes('review')) {
-                        result.commonSubjectLabel = 'Paper';
-                    } else if (this.template.title.toLowerCase().includes('favorite') || 
-                              this.template.title.toLowerCase().includes('favorited')) {
-                        result.commonSubjectLabel = 'Resource';
-                    }
-                }
-            }
-            
+if (this.template && this.template.statementOrder.length > 0) {
+
+
             result.structuredData = this.matchTemplateToData(result.entityLabels);
         } else {
             result.unmatchedAssertions = this.data.assertions;
@@ -1382,6 +1317,62 @@ checkGroupedConstraints(uri, groupedConstraints) {
     }
     
     return true;
+}
+
+identifyMainEntity() {
+    if (!this.template || !this.template.statements) {
+        return null;
+    }
+
+    console.log('=== IDENTIFYING MAIN ENTITY ===');
+    
+    // Priority 1: Look for IntroducedResource or EmbeddedResource
+    for (const [placeholderId, placeholder] of Object.entries(this.template.placeholders)) {
+        if (placeholder.types && (
+            placeholder.types.includes('IntroducedResource') || 
+            placeholder.types.includes('EmbeddedResource')
+        )) {
+            console.log(`Found main entity via IntroducedResource/EmbeddedResource: ${placeholderId}`);
+            return placeholderId;
+        }
+    }
+    
+    // Priority 2: Count subject appearances for each placeholder
+    const subjectCounts = {};
+    for (const stmt of Object.values(this.template.statements)) {
+        const subject = stmt.subject;
+        if (subject && subject.startsWith('sub:')) {
+            subjectCounts[subject] = (subjectCounts[subject] || 0) + 1;
+        }
+    }
+    
+    console.log('Subject frequency counts:', subjectCounts);
+    
+    // Find placeholder that appears as subject most frequently
+    let maxCount = 0;
+    let mostFrequentSubject = null;
+    for (const [subject, count] of Object.entries(subjectCounts)) {
+        if (count > maxCount) {
+            maxCount = count;
+            mostFrequentSubject = subject;
+        }
+    }
+    
+    if (mostFrequentSubject && maxCount > 1) {
+        console.log(`Found main entity via frequency: ${mostFrequentSubject} (appears ${maxCount} times)`);
+        return mostFrequentSubject;
+    }
+    
+    // Priority 3: Fall back to first ExternalUriPlaceholder
+    for (const [placeholderId, placeholder] of Object.entries(this.template.placeholders)) {
+        if (placeholder.types && placeholder.types.includes('ExternalUriPlaceholder')) {
+            console.log(`Falling back to first ExternalUriPlaceholder: ${placeholderId}`);
+            return placeholderId;
+        }
+    }
+    
+    console.log('No main entity found');
+    return null;
 }
 
 }
