@@ -87,6 +87,13 @@ document.addEventListener('click', function(event) {
 // ============= MAIN PROCESSING FUNCTION =============
 async function processNanopub() {
     const npContent = document.getElementById('npContent').value;
+    // DEBUG: Log the full content
+    console.log('=== RAW NANOPUB CONTENT ===');
+    console.log('Total length:', npContent.length);
+    console.log('Triple quote count:', (npContent.match(/"""/g) || []).length);
+    console.log('Last 200 chars:', npContent.slice(-200));
+    console.log('===========================');
+
     let templateContent = document.getElementById('templateContent').value;
     
     if (!npContent.trim()) {
