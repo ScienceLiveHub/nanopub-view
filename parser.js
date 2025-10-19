@@ -660,177 +660,380 @@ class NanopubParser {
         return false;
     }
 
-    parseTriples(content) {
-        console.log('PARSING TRIPLES - template exists:', !!this.template);
-        if (this.template && this.template.statements) {
-            console.log('Template has', Object.keys(this.template.statements).length, 'statements');
+splitBySemicolon(text) {
+    const parts = [];
+    let current = '';
+    let inTripleQuotes = false;
+    let inQuotes = false;
+    
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        
+        // Check for triple quotes
+        if (text.substr(i, 3) === '"""') {
+            inTripleQuotes = !inTripleQuotes;
+            current += '"""';
+            i += 2;
+            continue;
         }
         
-        const triples = [];
-        const statements = this.splitStatements(content);
-        console.log('Processing', statements.length, 'statements from nanopub');
+        // Check for single quotes
+        if (char === '"' && !inTripleQuotes && (i === 0 || text[i-1] !== '\\')) {
+            inQuotes = !inQuotes;
+            current += char;
+            continue;
+        }
         
-        statements.forEach(statement => {
-            const trimmed = statement.trim();
-            if (!trimmed) return;
+        // Semicolon splits only outside quotes
+        if (char === ';' && !inQuotes && !inTripleQuotes) {
+            if (current.trim()) {
+                parts.push(current.trim());
+            }
+            current = '';
+            continue;
+        }
+        
+        current += char;
+    }
+    
+    if (current.trim()) {
+        parts.push(current.trim());
+    }
+    
+    return parts;
+}
+
+// 2. NEW METHOD: Parse first triple (subject predicate object)
+parseFirstTriple(line) {
+    const subjectMatch = line.match(/^(\S+)\s+(.+)$/s);
+    if (!subjectMatch) return null;
+    
+    const subject = this.expandUri(subjectMatch[1]);
+    const rest = subjectMatch[2];
+    
+    const predicateMatch = rest.match(/^(\S+)\s+(.+)$/s);
+    if (!predicateMatch) return null;
+    
+    const predicate = this.expandUri(predicateMatch[1]);
+    const objectsPart = predicateMatch[2];
+    
+    const objects = this.splitObjects(objectsPart);
+    
+    const triples = objects.map(obj => ({
+        subject: subject,
+        predicate: predicate,
+        object: this.cleanObject(obj)
+    }));
+    
+    return { subject, triples };
+}
+
+// 3. NEW METHOD: Parse additional triples with same subject
+parseAdditionalTriple(subject, line) {
+    const match = line.match(/^(\S+)\s+(.+)$/s);
+    if (!match) return [];
+    
+    const predicate = this.expandUri(match[1]);
+    const objectsPart = match[2];
+    
+    const objects = this.splitObjects(objectsPart);
+    
+    return objects.map(obj => ({
+        subject: subject,
+        predicate: predicate,
+        object: this.cleanObject(obj)
+    }));
+}
+
+// 4. REPLACE: parseTriples method
+parseTriples(content) {
+    console.log('PARSING TRIPLES - template exists:', !!this.template);
+    if (this.template && this.template.statements) {
+        console.log('Template has', Object.keys(this.template.statements).length, 'statements');
+    }
+    
+    const triples = [];
+    const statements = this.splitStatements(content);
+    console.log('Processing', statements.length, 'statements from nanopub');
+    
+    statements.forEach(statement => {
+        const trimmed = statement.trim();
+        if (!trimmed) return;
+        
+        // Use the new semicolon-aware split
+        const lines = this.splitBySemicolon(trimmed);
+        let currentSubject = null;
+        
+        lines.forEach((line, index) => {
+            line = line.trim();
+            if (!line) return;
             
-            const lines = trimmed.split(/;\s*\n\s*/);
-            let currentSubject = null;
-            
-            lines.forEach((line, index) => {
-                line = line.trim();
-                if (!line) return;
-                
-                if (index === 0) {
-                    const match = line.match(/^(\S+)\s+(\S+)\s+(.+)$/s);
-                    if (match) {
-                        currentSubject = this.expandUri(match[1]);
-                        const predicate = this.expandUri(match[2]);
-                        const objectsPart = match[3];
-                        
-                        const objects = this.splitObjects(objectsPart);
-                        objects.forEach(obj => {
-                            triples.push({
-                                subject: currentSubject,
-                                predicate: predicate,
-                                object: this.cleanObject(obj)
-                            });
-                        });
-                    }
-                } else {
-                    const match = line.match(/^(\S+)\s+(.+)$/s);
-                    if (match && currentSubject) {
-                        const predicate = this.expandUri(match[1]);
-                        const objectsPart = match[2];
-                        
-                        const objects = this.splitObjects(objectsPart);
-                        objects.forEach(obj => {
-                            triples.push({
-                                subject: currentSubject,
-                                predicate: predicate,
-                                object: this.cleanObject(obj)
-                            });
-                        });
-                    }
+            if (index === 0) {
+                const firstTriple = this.parseFirstTriple(line);
+                if (firstTriple) {
+                    currentSubject = firstTriple.subject;
+                    triples.push(...firstTriple.triples);
                 }
-            });
+            } else {
+                if (currentSubject) {
+                    const additionalTriples = this.parseAdditionalTriple(currentSubject, line);
+                    triples.push(...additionalTriples);
+                }
+            }
         });
-        
-        console.log('FINISHED parsing. Created', triples.length, 'triples');
-        return triples;
-    }
+    });
+    
+    console.log('FINISHED parsing. Created', triples.length, 'triples');
+    return triples;
+}
 
-    splitObjects(objectsPart) {
-        const objects = [];
-        let current = '';
-        let inQuotes = false;
-        let inTripleQuotes = false;
-        let inAngleBrackets = false;
+// ============= ENHANCED SPLIT OBJECTS METHOD =============
+// Replace the splitObjects method in your parser.js (around line 724)
+
+splitObjects(objectsPart) {
+    const objects = [];
+    let current = '';
+    let inQuotes = false;
+    let inTripleQuotes = false;
+    let inAngleBrackets = false;
+    
+    for (let i = 0; i < objectsPart.length; i++) {
+        const char = objectsPart[i];
+        const next2 = objectsPart.substr(i, 3);
         
-        for (let i = 0; i < objectsPart.length; i++) {
-            const char = objectsPart[i];
-            const next2 = objectsPart.substr(i, 3);
-            
-            if (next2 === '"""') {
-                inTripleQuotes = !inTripleQuotes;
-                current += '"""';
-                i += 2;
-                continue;
-            }
-            
-            if (char === '"' && !inTripleQuotes && objectsPart[i-1] !== '\\') {
-                inQuotes = !inQuotes;
-                current += char;
-                continue;
-            }
-            
-            if (char === '<' && !inQuotes && !inTripleQuotes) {
-                inAngleBrackets = true;
-                current += char;
-                continue;
-            }
-            if (char === '>' && !inQuotes && !inTripleQuotes) {
-                inAngleBrackets = false;
-                current += char;
-                continue;
-            }
-            
-            if (char === ',' && !inQuotes && !inTripleQuotes && !inAngleBrackets) {
-                if (current.trim()) {
-                    objects.push(current.trim());
-                }
-                current = '';
-                continue;
-            }
-            
+        // Check for triple quotes - CRITICAL for multi-line literals
+        if (next2 === '"""') {
+            inTripleQuotes = !inTripleQuotes;
+            current += '"""';
+            i += 2; // Skip the next 2 characters since we consumed 3
+            continue;
+        }
+        
+        // Check for single quotes (only if not in triple quotes)
+        if (char === '"' && !inTripleQuotes && (i === 0 || objectsPart[i-1] !== '\\')) {
+            inQuotes = !inQuotes;
             current += char;
+            continue;
         }
         
-        if (current.trim()) {
-            objects.push(current.trim());
-        }
-        
-        return objects;
-    }
-
-    splitStatements(content) {
-        const statements = [];
-        let current = '';
-        let inQuotes = false;
-        let tripleQuotes = false;
-        
-        for (let i = 0; i < content.length; i++) {
-            const char = content[i];
-            
-            if (content.substr(i, 3) === '"""') {
-                tripleQuotes = !tripleQuotes;
-                current += '"""';
-                i += 2;
-                continue;
-            }
-            
-            if (char === '"' && !tripleQuotes && content[i-1] !== '\\') {
-                inQuotes = !inQuotes;
-            }
-            
+        // Check for angle brackets (URIs)
+        if (char === '<' && !inQuotes && !inTripleQuotes) {
+            inAngleBrackets = true;
             current += char;
-            
-            if (char === '.' && !inQuotes && !tripleQuotes && content[i+1]?.match(/\s/)) {
-                statements.push(current.slice(0, -1));
-                current = '';
+            continue;
+        }
+        if (char === '>' && !inQuotes && !inTripleQuotes) {
+            inAngleBrackets = false;
+            current += char;
+            continue;
+        }
+        
+        // Comma separates multiple objects, but only outside quotes/brackets
+        if (char === ',' && !inQuotes && !inTripleQuotes && !inAngleBrackets) {
+            if (current.trim()) {
+                objects.push(current.trim());
+            }
+            current = '';
+            continue;
+        }
+        
+        // Add character to current object
+        current += char;
+    }
+    
+    // Don't forget the last object
+    if (current.trim()) {
+        objects.push(current.trim());
+    }
+    
+    return objects;
+}
+// ============= COMPLETE FIX FOR TRIPLE-QUOTED STRINGS =============
+// This includes fixes for all three methods that handle string parsing
+
+// ============= DIAGNOSTIC VERSION =============
+// Add extensive logging to find where truncation happens
+
+// 1. Replace splitStatements with this diagnostic version
+splitStatements(content) {
+    console.log('=== splitStatements INPUT ===');
+    console.log('Content length:', content.length);
+    console.log('Contains """:', content.includes('"""'));
+    
+    const statements = [];
+    let current = '';
+    let inQuotes = false;
+    let inTripleQuotes = false;
+    
+    for (let i = 0; i < content.length; i++) {
+        const char = content[i];
+        
+        if (content.substr(i, 3) === '"""') {
+            inTripleQuotes = !inTripleQuotes;
+            current += '"""';
+            console.log(`Position ${i}: Found """, inTripleQuotes now:`, inTripleQuotes);
+            i += 2;
+            continue;
+        }
+        
+        if (char === '"' && !inTripleQuotes && (i === 0 || content[i-1] !== '\\')) {
+            inQuotes = !inQuotes;
+        }
+        
+        current += char;
+        
+        if (char === '.' && !inQuotes && !inTripleQuotes && content[i+1]?.match(/\s/)) {
+            console.log('Statement split at position:', i, 'Statement length:', current.length);
+            statements.push(current.slice(0, -1));
+            current = '';
+        }
+    }
+    
+    if (current.trim()) {
+        statements.push(current);
+    }
+    
+    console.log('=== splitStatements OUTPUT ===');
+    console.log('Created', statements.length, 'statements');
+    statements.forEach((stmt, idx) => {
+        console.log(`Statement ${idx} length:`, stmt.length);
+        if (stmt.includes('"""')) {
+            console.log(`Statement ${idx} contains triple quotes`);
+        }
+    });
+    
+    return statements;
+}
+
+// 2. Replace splitObjects with this diagnostic version
+splitObjects(objectsPart) {
+    console.log('=== splitObjects INPUT ===');
+    console.log('objectsPart length:', objectsPart.length);
+    console.log('objectsPart contains """:', objectsPart.includes('"""'));
+    
+    const objects = [];
+    let current = '';
+    let inQuotes = false;
+    let inTripleQuotes = false;
+    let inAngleBrackets = false;
+    
+    for (let i = 0; i < objectsPart.length; i++) {
+        const char = objectsPart[i];
+        const next2 = objectsPart.substr(i, 3);
+        
+        if (next2 === '"""') {
+            inTripleQuotes = !inTripleQuotes;
+            current += '"""';
+            console.log(`Position ${i}: Found """, inTripleQuotes now:`, inTripleQuotes);
+            i += 2;
+            continue;
+        }
+        
+        if (char === '"' && !inTripleQuotes && (i === 0 || objectsPart[i-1] !== '\\')) {
+            inQuotes = !inQuotes;
+            current += char;
+            continue;
+        }
+        
+        if (char === '<' && !inQuotes && !inTripleQuotes) {
+            inAngleBrackets = true;
+            current += char;
+            continue;
+        }
+        if (char === '>' && !inQuotes && !inTripleQuotes) {
+            inAngleBrackets = false;
+            current += char;
+            continue;
+        }
+        
+        if (char === ',' && !inQuotes && !inTripleQuotes && !inAngleBrackets) {
+            if (current.trim()) {
+                objects.push(current.trim());
+            }
+            current = '';
+            continue;
+        }
+        
+        current += char;
+    }
+    
+    if (current.trim()) {
+        objects.push(current.trim());
+    }
+    
+    console.log('=== splitObjects OUTPUT ===');
+    console.log('Created', objects.length, 'objects');
+    objects.forEach((obj, idx) => {
+        console.log(`Object ${idx} length:`, obj.length);
+        console.log(`Object ${idx} starts with """:`, obj.startsWith('"""'));
+        if (obj.includes('"""')) {
+            const firstTriple = obj.indexOf('"""');
+            const secondTriple = obj.indexOf('"""', firstTriple + 3);
+            console.log(`Object ${idx} first """ at:`, firstTriple, 'second """ at:', secondTriple);
+        }
+    });
+    
+    return objects;
+}
+
+// 3. Use the bulletproof cleanObject from the previous artifact
+cleanObject(obj) {
+    if (!obj) return '';
+    
+    const original = obj;
+    obj = obj.trim();
+    
+    console.log('=== cleanObject INPUT ===');
+    console.log('Input length:', obj.length);
+    console.log('Starts with """:', obj.startsWith('"""'));
+    
+    if (obj.startsWith('"""')) {
+        console.log('Processing triple-quoted string...');
+        
+        // Find closing triple quotes
+        let endIndex = -1;
+        for (let i = 3; i < obj.length - 2; i++) {
+            if (obj[i] === '"' && obj[i+1] === '"' && obj[i+2] === '"') {
+                endIndex = i;
+                console.log('Found closing """ at position:', i);
+                break;
             }
         }
         
-        if (current.trim()) {
-            statements.push(current);
+        if (endIndex !== -1) {
+            let content = obj.slice(3, endIndex);
+            console.log('Extracted content length:', content.length);
+            content = content.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+            console.log('Final content length:', content.length);
+            return content;
+        } else {
+            console.warn('⚠️ NO CLOSING TRIPLE QUOTES FOUND!');
+            console.log('String ends with:', obj.slice(-50));
+            let content = obj.slice(3);
+            content = content.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+            return content;
         }
-        
-        return statements;
     }
-
-    cleanObject(obj) {
-        if (!obj) return '';
-        obj = obj.trim();
-        
-        if (obj.endsWith('.') || obj.endsWith(';')) {
-            obj = obj.slice(0, -1).trim();
-        }
-        
-        if (obj.includes('^^')) {
-            const parts = obj.split('^^');
-            obj = parts[0];
-        }
-        
-        if (obj.startsWith('"""') && obj.includes('"""', 3)) {
-            return obj.slice(3, obj.lastIndexOf('"""'));
-        }
-        
-        if (obj.startsWith('"') && obj.includes('"', 1)) {
-            return obj.slice(1, obj.lastIndexOf('"'));
-        }
-        
-        return this.expandUri(obj);
+    
+    if (obj.endsWith('.') || obj.endsWith(';')) {
+        obj = obj.slice(0, -1).trim();
     }
+    
+    if (obj.includes('^^')) {
+        const parts = obj.split('^^');
+        obj = parts[0].trim();
+    }
+    
+    if (obj.startsWith('"') && obj.length > 1) {
+        const lastQuoteIndex = obj.lastIndexOf('"');
+        if (lastQuoteIndex > 0) {
+            return obj.slice(1, lastQuoteIndex);
+        }
+        return obj.slice(1);
+    }
+    
+    return this.expandUri(obj);
+}
 
     expandUri(uri) {
         if (!uri) return uri;

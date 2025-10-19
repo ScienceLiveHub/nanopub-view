@@ -343,23 +343,32 @@ function displayPublication(data) {
 }
 
 // ============= UTILITY FUNCTIONS =============
+// ============= ENHANCED FORMAT VALUE FUNCTION =============
+// ============= DEBUG VERSION OF formatValue =============
+// This adds extra logging to see what's happening
+
 function formatValue(val, types, isDecodedUri) {
     const isUri = val.raw && val.raw.startsWith('http');
     const isLongLiteral = types && types.includes('LongLiteralPlaceholder');
     
-    console.log('formatValue called with:', {
-        raw: val.raw,
-        display: val.display,
-        displayType: typeof val.display,
-        isObject: typeof val.display === 'object' && val.display !== null
-    });
+    // Log the full value for debugging
+    console.log('=== formatValue DEBUG ===');
+    console.log('val.raw length:', val.raw ? val.raw.length : 0);
+    console.log('val.display length:', typeof val.display === 'string' ? val.display.length : 'not a string');
+    console.log('isLongLiteral:', isLongLiteral);
+    console.log('Full display value:', val.display);
+    
+    // Detect content type for long literals
+    const contentType = isLongLiteral ? detectContentType(val.display) : null;
+    
+    console.log('Detected contentType:', contentType);
+    console.log('========================');
     
     if (isDecodedUri) {
         return `<div class="decoded-sentence">${escapeHtml(getDisplayText(val.display))}</div>`;
     } else if (isUri) {
         // Check if display value is an object (from Wikidata)
         if (typeof val.display === 'object' && val.display !== null && val.display.label) {
-            console.log('Display is an object with label:', val.display);
             const label = val.display.label;
             const description = val.display.description;
             
@@ -376,18 +385,223 @@ function formatValue(val, types, isDecodedUri) {
                 return `<a href="${val.raw}" target="_blank">${escapeHtml(label)}</a>`;
             }
         } else {
-            // String display
-            console.log('Display is a string:', val.display);
             const displayText = getDisplayText(val.display);
             return `<a href="${val.raw}" target="_blank">${escapeHtml(displayText)}</a>`;
         }
+    } else if (contentType) {
+        console.log('Using formatContentByType with:', contentType);
+        // Handle different content types specially
+        return formatContentByType(val, contentType);
     } else if (isLongLiteral || (typeof val.display === 'string' && val.display.length > 100)) {
-        return `<div class="long-literal">${escapeHtml(getDisplayText(val.display))}</div>`;
+        console.log('Using formatGenericLongLiteral');
+        // Generic long literal
+        return formatGenericLongLiteral(val);
     } else {
         return `<div class="literal-value">${escapeHtml(getDisplayText(val.display))}</div>`;
     }
 }
+// ============= CONTENT TYPE DETECTION =============
+// Add this new function to detect content types
+function detectContentType(text) {
+    if (typeof text !== 'string') return null;
+    
+    const trimmed = text.trim();
+    
+    // SPARQL query - check for SPARQL keywords
+    if (trimmed.match(/^\s*(PREFIX|prefix|SELECT|select|CONSTRUCT|construct|ASK|ask|DESCRIBE|describe)\s/i) ||
+        trimmed.includes('prefix ') || trimmed.includes('PREFIX ')) {
+        return 'sparql';
+    }
+    
+    // JSON
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+            JSON.parse(trimmed);
+            return 'json';
+        } catch (e) {
+            // Not valid JSON
+        }
+    }
+    
+    // XML
+    if (trimmed.startsWith('<?xml') || trimmed.match(/^<[a-zA-Z][\w:]*[^>]*>/)) {
+        return 'xml';
+    }
+    
+    // Python code
+    if (trimmed.match(/^(import|from|def|class|if __name__)/m)) {
+        return 'python';
+    }
+    
+    // JavaScript code
+    if (trimmed.match(/^(function|const|let|var|class|import|export)/m) ||
+        trimmed.includes('=>') || trimmed.includes('function(')) {
+        return 'javascript';
+    }
+    
+    // Markdown (has headers, lists, or code blocks)
+    if (trimmed.match(/^#{1,6}\s/m) || 
+        trimmed.match(/^[\*\-\+]\s/m) || 
+        trimmed.includes('```')) {
+        return 'markdown';
+    }
+    
+    // CSV
+    if (trimmed.split('\n').length > 2 && 
+        trimmed.split('\n')[0].includes(',')) {
+        const lines = trimmed.split('\n');
+        const firstLineCount = lines[0].split(',').length;
+        if (lines.slice(0, 3).every(line => line.split(',').length === firstLineCount)) {
+            return 'csv';
+        }
+    }
+    
+    return null; // Unknown type
+}
 
+// ============= FORMAT BY CONTENT TYPE =============
+// Add this new function to format different content types
+function formatContentByType(val, contentType) {
+    const uniqueId = `content-${contentType}-${Math.random().toString(36).substr(2, 9)}`;
+    const text = getDisplayText(val.display);
+    const escapedText = escapeHtml(text);
+    
+    const typeConfig = {
+        sparql: {
+            label: 'SPARQL Query',
+            icon: 'fa-database',
+            gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        },
+        json: {
+            label: 'JSON Data',
+            icon: 'fa-brackets-curly',
+            gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+        },
+        xml: {
+            label: 'XML Document',
+            icon: 'fa-code',
+            gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+        },
+        python: {
+            label: 'Python Code',
+            icon: 'fa-brands fa-python',
+            gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+        },
+        javascript: {
+            label: 'JavaScript Code',
+            icon: 'fa-brands fa-js',
+            gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
+        },
+        markdown: {
+            label: 'Markdown Text',
+            icon: 'fa-brands fa-markdown',
+            gradient: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)'
+        },
+        csv: {
+            label: 'CSV Data',
+            icon: 'fa-table',
+            gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)'
+        }
+    };
+    
+    const config = typeConfig[contentType] || {
+        label: 'Code',
+        icon: 'fa-file-code',
+        gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    };
+    
+    return `
+        <div class="content-container ${contentType}-container">
+            <div class="content-header" style="background: ${config.gradient}">
+                <i class="fas ${config.icon}"></i>
+                <span class="content-label">${config.label}</span>
+                <button class="content-toggle" onclick="toggleContent('${uniqueId}')" title="Show/Hide">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <button class="content-copy" onclick="copyContent('${uniqueId}')" title="Copy to Clipboard">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <pre id="${uniqueId}" class="content-block ${contentType}-block collapsed">${escapedText}</pre>
+        </div>
+    `;
+}
+
+// ============= FORMAT GENERIC LONG LITERAL =============
+// Add this new function for generic long text
+function formatGenericLongLiteral(val) {
+    const uniqueId = 'long-' + Math.random().toString(36).substr(2, 9);
+    const text = getDisplayText(val.display);
+    
+    return `
+        <div class="long-literal-container">
+            <div id="${uniqueId}" class="long-literal collapsed">${escapeHtml(text)}</div>
+            <button class="show-more-btn" onclick="toggleLongLiteral('${uniqueId}')" title="Show more">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+    `;
+}
+
+// ============= TOGGLE FUNCTIONS =============
+// Add these new toggle functions
+
+// Toggle content visibility (works for any content type)
+function toggleContent(id) {
+    const element = document.getElementById(id);
+    const button = element.previousElementSibling.querySelector('.content-toggle i');
+    
+    if (element.classList.contains('collapsed')) {
+        element.classList.remove('collapsed');
+        element.classList.add('expanded');
+        button.classList.remove('fa-chevron-down');
+        button.classList.add('fa-chevron-up');
+    } else {
+        element.classList.add('collapsed');
+        element.classList.remove('expanded');
+        button.classList.remove('fa-chevron-up');
+        button.classList.add('fa-chevron-down');
+    }
+}
+
+// Copy content to clipboard
+function copyContent(id) {
+    const element = document.getElementById(id);
+    const text = element.textContent;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const button = element.previousElementSibling.querySelector('.content-copy i');
+        button.classList.remove('fa-copy');
+        button.classList.add('fa-check');
+        
+        setTimeout(() => {
+            button.classList.remove('fa-check');
+            button.classList.add('fa-copy');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+        alert('Failed to copy to clipboard');
+    });
+}
+
+// Toggle long literal visibility
+function toggleLongLiteral(id) {
+    const element = document.getElementById(id);
+    const button = element.nextElementSibling.querySelector('i');
+    
+    if (element.classList.contains('collapsed')) {
+        element.classList.remove('collapsed');
+        element.classList.add('expanded');
+        button.classList.remove('fa-chevron-down');
+        button.classList.add('fa-chevron-up');
+    } else {
+        element.classList.add('collapsed');
+        element.classList.remove('expanded');
+        button.classList.remove('fa-chevron-up');
+        button.classList.add('fa-chevron-down');
+    }
+}
 function getDisplayText(display) {
     if (typeof display === 'object' && display !== null && display.label) {
         return display.label;
