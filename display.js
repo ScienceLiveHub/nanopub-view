@@ -83,7 +83,85 @@ document.addEventListener('click', function(event) {
         }
     }
 });
-
+// ============= FETCH NANOPUB FROM URL =============
+async function fetchNanopubFromUrl() {
+    const urlInput = document.getElementById('npUrl');
+    const url = urlInput.value.trim();
+    
+    if (!url) {
+        showError('Please enter a nanopublication URL');
+        return;
+    }
+    
+    // Extract the nanopub ID from the URL
+    let npId = null;
+    
+    // Handle w3id.org URLs
+    if (url.includes('w3id.org/np/')) {
+        npId = url.split('w3id.org/np/')[1].split(/[?#]/)[0];
+    }
+    // Handle registry.knowledgepixels.com URLs
+    else if (url.includes('registry.knowledgepixels.com/np/')) {
+        npId = url.split('registry.knowledgepixels.com/np/')[1].split(/[?#.]/)[0];
+    }
+    // If just an ID is pasted
+    else if (url.match(/^[A-Za-z0-9_-]+$/)) {
+        npId = url;
+    }
+    else {
+        showError('Invalid nanopublication URL. Please use a w3id.org/np/ or registry.knowledgepixels.com URL');
+        return;
+    }
+    
+    if (!npId) {
+        showError('Could not extract nanopublication ID from URL');
+        return;
+    }
+    
+    // Construct the TriG URL
+    const trigUrl = `https://registry.knowledgepixels.com/np/${npId}.trig`;
+    
+    document.getElementById('loading').classList.add('active');
+    document.getElementById('loading').textContent = `Fetching nanopublication from ${trigUrl}...`;
+    document.getElementById('error').classList.remove('active');
+    
+    try {
+        const response = await fetch(trigUrl, {
+            headers: {
+                'Accept': 'application/trig, text/turtle, text/plain'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch nanopublication: ${response.status} ${response.statusText}`);
+        }
+        
+        const content = await response.text();
+        
+        if (!content || content.trim().length === 0) {
+            throw new Error('Received empty content from server');
+        }
+        
+        // Populate the textarea with the fetched content
+        document.getElementById('npContent').value = content;
+        
+        // Clear the URL input
+        urlInput.value = '';
+        
+        // Show success message briefly
+        document.getElementById('loading').textContent = 'Nanopublication fetched successfully! Processing...';
+        
+        // Automatically process the nanopub
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await processNanopub();
+        
+    } catch (error) {
+        console.error('Fetch error:', error);
+        showError(`Error fetching nanopublication: ${error.message}`);
+    } finally {
+        document.getElementById('loading').classList.remove('active');
+    }
+}
 // ============= MAIN PROCESSING FUNCTION =============
 async function processNanopub() {
     const npContent = document.getElementById('npContent').value;
@@ -341,7 +419,7 @@ function displayPublication(data) {
                         const uniqueId = 'desc-pred-' + Math.random().toString(36).substr(2, 9);
                         html += `<span class="field-label">
                             <a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${escapeHtml(label)}</a>
-                            <span class="info-icon" onclick="toggleDescription('${uniqueId}')" title="Show description">ℹ️</span>:
+                            <span class="info-icon" onclick="toggleDescription('${uniqueId}')" title="Show description"><i class="fas fa-info-circle"></i></span>:
                             <div id="${uniqueId}" class="wikidata-description">${escapeHtml(description)}</div>
                         </span>`;
                     } else {
@@ -450,7 +528,7 @@ function formatValue(val, types, isDecodedUri) {
                 return `
                     <span class="wikidata-item">
                         <a href="${val.raw}" target="_blank" class="wikidata-link">${escapeHtml(label)}</a>
-                        <span class="info-icon" onclick="toggleDescription('${uniqueId}')" title="Show description">ℹ️</span>
+                        <span class="info-icon" onclick="toggleDescription('${uniqueId}')" title="Show description"><i class="fas fa-info-circle"></i></span>
                         <div id="${uniqueId}" class="wikidata-description">${escapeHtml(description)}</div>
                     </span>
                 `;
