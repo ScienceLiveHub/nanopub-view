@@ -385,3 +385,84 @@ textarea:focus {
 .main-entity-group .field-value {
     margin-left: 0;
 }
+.wikidata-link {
+    position: relative;
+    display: inline-block;
+    color: var(--primary);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--primary);
+}
+
+.wikidata-link:hover {
+    text-decoration: none;
+}
+
+.wikidata-link[data-description]:hover::after {
+    content: attr(data-description);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 5px;
+    font-size: 14px;
+    max-width: 300px;
+    white-space: normal;
+}
+
+.wikidata-link[data-description]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+    margin-bottom: -5px;
+}
+
+
+/* Wikidata link with description toggle */
+.wikidata-item {
+    display: inline-block;
+    margin: 2px 0;
+}
+
+.wikidata-link {
+    color: var(--primary);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--primary);
+    cursor: pointer;
+}
+
+.wikidata-link:hover {
+    text-decoration: none;
+    opacity: 0.8;
+}
+
+.wikidata-link.has-description::after {
+    content: ' ℹ️';
+    font-size: 0.85em;
+    opacity: 0.6;
+}
+
+.wikidata-description {
+    display: none;
+    font-size: 0.9em;
+    color: var(--text-light);
+    font-style: italic;
+    padding: 8px 12px;
+    margin-top: 4px;
+    background: #f8f9fa;
+    border-left: 3px solid var(--primary);
+    border-radius: 3px;
+}
+
+.wikidata-description.expanded {
+    display: block;
+}
