@@ -101,7 +101,6 @@ async function processNanopub() {
     try {
         const parser = new NanopubParser(npContent, templateContent);
         
-        // If no template provided, try to fetch it automatically
         if (!templateContent || !templateContent.trim()) {
             document.getElementById('loading').textContent = 'Looking for template reference...';
             const templateUri = parser.extractTemplateUri();
@@ -111,10 +110,8 @@ async function processNanopub() {
                 document.getElementById('loading').textContent = 'Fetching template from ' + templateUri + '...';
                 
                 try {
-                    // Try multiple methods to fetch the template
                     let fetchedContent = null;
                     
-                    // Method 1: Direct fetch
                     try {
                         const response = await fetch(templateUri, {
                             headers: {
@@ -130,7 +127,6 @@ async function processNanopub() {
                         console.warn('Direct fetch failed:', directError);
                     }
                     
-                    // Method 2: Try with CORS proxy if direct fetch failed
                     if (!fetchedContent) {
                         try {
                             const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(templateUri)}`;
@@ -146,13 +142,12 @@ async function processNanopub() {
                     if (fetchedContent) {
                         templateContent = fetchedContent;
                         console.log('Template fetched successfully');
-                        // Update the parser with the fetched template
                         parser.templateContent = templateContent;
-                        parser.template = null; // Reset to reparse
+                        parser.template = null;
                     } else {
                         console.warn('Could not fetch template from any source');
                         document.getElementById('loading').textContent = 'Template not accessible, continuing without it...';
-                        await new Promise(resolve => setTimeout(resolve, 1000)); // Show message briefly
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 } catch (fetchError) {
                     console.warn('Error fetching template:', fetchError);
@@ -164,10 +159,8 @@ async function processNanopub() {
             }
         }
         
-        // Update loading message
         document.getElementById('loading').textContent = 'Fetching predicate labels from the web...';
         
-        // Use parseWithLabels() to fetch labels from the web
         console.log('About to call parseWithLabels');
         const data = await parser.parseWithLabels();
         console.log('parseWithLabels returned:', data);
@@ -179,6 +172,7 @@ async function processNanopub() {
         document.getElementById('loading').classList.remove('active');
     }
 }
+
 // ============= DISPLAY FUNCTIONS =============
 function displayPublication(data) {
     let html = `
@@ -232,18 +226,27 @@ function displayPublication(data) {
             }
             html += `</div></div>`;
         }
-// FROM HERE
-data.structuredData.forEach(field => {
+
+        data.structuredData.forEach(field => {
             if (field.values.length === 0 && field.optional) return;
-            if (field.isMainEntity) return;
+            
+            // Display main entity field prominently
+            if (field.isMainEntity) {
+                html += `<div class="field-group main-entity-group">`;
+                html += `<div class="field-value">`;
+                field.values.forEach((val, index) => {
+                    if (index > 0) html += '<br>';
+                    html += formatValue(val, field.type, field.isDecodedUri);
+                });
+                html += `</div></div>`;
+                return; // Skip to next field
+            }
             
             html += `<div class="field-group">`;
             
-            // Handle subject fields (no predicate URI) differently
             if (field.isSubjectField) {
                 html += `<span class="field-label">${field.label}:</span>`;
             } else if (field.predicateUri) {
-                // Make the predicate label clickable if we have a predicate URI
                 html += `<span class="field-label"><a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${field.label}</a>:</span>`;
             } else {
                 html += `<span class="field-label">${field.label}:</span>`;
@@ -254,19 +257,18 @@ data.structuredData.forEach(field => {
             if (field.repeatable && field.values.length > 1) {
                 html += '<ul>';
                 field.values.forEach(val => {
-                    html += '<li>' + formatValue(val, field.type) + '</li>';
+                    html += '<li>' + formatValue(val, field.type, field.isDecodedUri) + '</li>';
                 });
                 html += '</ul>';
-            }  else {
+            } else {
                 field.values.forEach((val, index) => {
-                    if (index > 0) html += ', ';  // Add comma and space between values
-                    html += formatValue(val, field.type);
+                    if (index > 0) html += ', ';
+                    html += formatValue(val, field.type, field.isDecodedUri);
                 });
             }
             
             html += `</div></div>`;
-        });        
-// UNTIL HERE
+        });
     } else if (data.unmatchedAssertions.length > 0) {
         html += `<div class="raw-statements">`;
         data.unmatchedAssertions.forEach(triple => {
@@ -324,11 +326,14 @@ data.structuredData.forEach(field => {
 }
 
 // ============= UTILITY FUNCTIONS =============
-function formatValue(val, types) {
+function formatValue(val, types, isDecodedUri) {
     const isUri = val.raw.startsWith('http');
-    const isLongLiteral = types.includes('LongLiteralPlaceholder');
+    const isLongLiteral = types && types.includes('LongLiteralPlaceholder');
     
-    if (isUri) {
+    if (isDecodedUri) {
+        // Show decoded text prominently, not as a link
+        return `<div class="decoded-sentence">${val.display}</div>`;
+    } else if (isUri) {
         const displayText = val.display.split(' - ')[0];
         return `<a href="${val.raw}" target="_blank">${displayText}</a>`;
     } else if (isLongLiteral || val.display.length > 100) {
