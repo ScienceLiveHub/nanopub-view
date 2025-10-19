@@ -336,6 +336,11 @@ class LabelFetcher {
 
     async _doFetch(uri) {
         try {
+            // Special handling for Wikidata entities
+            if (uri.includes('wikidata.org/entity/')) {
+                return await this.fetchWikidataLabel(uri);
+            }
+            
             const response = await fetch(uri, {
                 headers: {
                     'Accept': 'text/turtle, application/rdf+xml, application/ld+json, text/plain'
@@ -360,6 +365,42 @@ class LabelFetcher {
                 return this.parseTurtleLabel(text, uri);
             }
         } catch (error) {
+            return null;
+        }
+    }
+
+    async fetchWikidataLabel(uri) {
+        try {
+            // Extract entity ID (Q12345 or P162)
+            const match = uri.match(/\/entity\/([QP]\d+)/);
+            if (!match) return null;
+            
+            const entityId = match[1];
+            
+            // Use Wikidata API to get label and description
+            const apiUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${entityId}&props=labels|descriptions&languages=en&format=json&origin=*`;
+            
+            const response = await fetch(apiUrl);
+            if (!response.ok) return null;
+            
+            const data = await response.json();
+            
+            if (data.entities && data.entities[entityId]) {
+                const entity = data.entities[entityId];
+                const label = entity.labels?.en?.value;
+                const description = entity.descriptions?.en?.value;
+                
+                // Return label with description if available
+                if (label && description) {
+                    return `${label} - ${description}`;
+                } else if (label) {
+                    return label;
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error fetching Wikidata label:', error);
             return null;
         }
     }
