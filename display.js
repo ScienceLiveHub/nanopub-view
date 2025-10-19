@@ -232,18 +232,23 @@ function displayPublication(data) {
             }
             html += `</div></div>`;
         }
-        
-        data.structuredData.forEach(field => {
+// FROM HERE
+data.structuredData.forEach(field => {
             if (field.values.length === 0 && field.optional) return;
             if (field.isMainEntity) return;
             
             html += `<div class="field-group">`;
-            // Make the label clickable if we have a predicate URI
-            if (field.predicateUri) {
+            
+            // Handle subject fields (no predicate URI) differently
+            if (field.isSubjectField) {
+                html += `<span class="field-label">${field.label}:</span>`;
+            } else if (field.predicateUri) {
+                // Make the predicate label clickable if we have a predicate URI
                 html += `<span class="field-label"><a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${field.label}</a>:</span>`;
             } else {
                 html += `<span class="field-label">${field.label}:</span>`;
             }
+            
             html += `<div class="field-value">`;
             
             if (field.repeatable && field.values.length > 1) {
@@ -253,14 +258,15 @@ function displayPublication(data) {
                 });
                 html += '</ul>';
             }  else {
-    field.values.forEach( (val, index)  => {
-                if (index > 0) html += ', ';  // Add comma and space between values
-        html += formatValue(val, field.type);
-    });
+                field.values.forEach((val, index) => {
+                    if (index > 0) html += ', ';  // Add comma and space between values
+                    html += formatValue(val, field.type);
+                });
             }
             
             html += `</div></div>`;
-        });
+        });        
+// UNTIL HERE
     } else if (data.unmatchedAssertions.length > 0) {
         html += `<div class="raw-statements">`;
         data.unmatchedAssertions.forEach(triple => {
