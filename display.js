@@ -247,7 +247,24 @@ function displayPublication(data) {
             if (field.isSubjectField) {
                 html += `<span class="field-label">${field.label}:</span>`;
             } else if (field.predicateUri) {
-                html += `<span class="field-label"><a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${field.label}</a>:</span>`;
+                // Check if label is an object with description
+                if (typeof field.label === 'object' && field.label !== null && field.label.label) {
+                    const label = field.label.label;
+                    const description = field.label.description;
+                    if (description) {
+                        const uniqueId = 'desc-pred-' + Math.random().toString(36).substr(2, 9);
+                        html += `<span class="field-label">
+                            <a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${escapeHtml(label)}</a>
+                            <span class="info-icon" onclick="toggleDescription('${uniqueId}')" title="Show description">ℹ️</span>:
+                            <div id="${uniqueId}" class="wikidata-description">${escapeHtml(description)}</div>
+                        </span>`;
+                    } else {
+                        html += `<span class="field-label"><a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${escapeHtml(label)}</a>:</span>`;
+                    }
+                } else {
+                    const labelText = typeof field.label === 'string' ? field.label : String(field.label);
+                    html += `<span class="field-label"><a href="${field.predicateUri}" target="_blank" title="${field.predicateUri}">${labelText}</a>:</span>`;
+                }
             } else {
                 html += `<span class="field-label">${field.label}:</span>`;
             }
@@ -327,20 +344,65 @@ function displayPublication(data) {
 
 // ============= UTILITY FUNCTIONS =============
 function formatValue(val, types, isDecodedUri) {
-    const isUri = val.raw.startsWith('http');
+    const isUri = val.raw && val.raw.startsWith('http');
     const isLongLiteral = types && types.includes('LongLiteralPlaceholder');
     
+    console.log('formatValue called with:', {
+        raw: val.raw,
+        display: val.display,
+        displayType: typeof val.display,
+        isObject: typeof val.display === 'object' && val.display !== null
+    });
+    
     if (isDecodedUri) {
-        // Show decoded text prominently, not as a link
-        return `<div class="decoded-sentence">${val.display}</div>`;
+        return `<div class="decoded-sentence">${escapeHtml(getDisplayText(val.display))}</div>`;
     } else if (isUri) {
-        const displayText = val.display.split(' - ')[0];
-        return `<a href="${val.raw}" target="_blank">${displayText}</a>`;
-    } else if (isLongLiteral || val.display.length > 100) {
-        return `<div class="long-literal">${val.display}</div>`;
+        // Check if display value is an object (from Wikidata)
+        if (typeof val.display === 'object' && val.display !== null && val.display.label) {
+            console.log('Display is an object with label:', val.display);
+            const label = val.display.label;
+            const description = val.display.description;
+            
+            if (description) {
+                const uniqueId = 'desc-' + Math.random().toString(36).substr(2, 9);
+                return `
+                    <span class="wikidata-item">
+                        <a href="${val.raw}" target="_blank" class="wikidata-link">${escapeHtml(label)}</a>
+                        <span class="info-icon" onclick="toggleDescription('${uniqueId}')" title="Show description">ℹ️</span>
+                        <div id="${uniqueId}" class="wikidata-description">${escapeHtml(description)}</div>
+                    </span>
+                `;
+            } else {
+                return `<a href="${val.raw}" target="_blank">${escapeHtml(label)}</a>`;
+            }
+        } else {
+            // String display
+            console.log('Display is a string:', val.display);
+            const displayText = getDisplayText(val.display);
+            return `<a href="${val.raw}" target="_blank">${escapeHtml(displayText)}</a>`;
+        }
+    } else if (isLongLiteral || (typeof val.display === 'string' && val.display.length > 100)) {
+        return `<div class="long-literal">${escapeHtml(getDisplayText(val.display))}</div>`;
     } else {
-        return `<div class="literal-value">${val.display}</div>`;
+        return `<div class="literal-value">${escapeHtml(getDisplayText(val.display))}</div>`;
     }
+}
+
+function getDisplayText(display) {
+    if (typeof display === 'object' && display !== null && display.label) {
+        return display.label;
+    }
+    if (typeof display === 'string') {
+        return display.split(' - ')[0];
+    }
+    return String(display);
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
 }
 
 function formatUri(uri) {
@@ -372,3 +434,19 @@ function toggleAdvancedOptions() {
         icon.classList.add('fa-chevron-down');
     }
 }
+
+// ============= WIKIDATA DESCRIPTION TOGGLE =============
+window.toggleDescription = function(descId) {
+    const descElement = document.getElementById(descId);
+    
+    if (descElement) {
+        const linkElement = descElement.previousElementSibling;
+        descElement.classList.toggle('expanded');
+        
+        // Update aria-expanded for accessibility
+        const isExpanded = descElement.classList.contains('expanded');
+        if (linkElement) {
+            linkElement.setAttribute('aria-expanded', isExpanded);
+        }
+    }
+};

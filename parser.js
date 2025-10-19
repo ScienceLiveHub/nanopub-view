@@ -141,7 +141,6 @@ class TemplateProcessor {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             
-            // Check if line starts a placeholder or resource definition
             if (line.match(/^sub:\w+\s+a\s+.*(Placeholder|Resource)/)) {
                 inPlaceholderBlock = true;
                 currentBlock = line + '\n';
@@ -192,7 +191,6 @@ class TemplateProcessor {
             }
         });
         
-        // Only store if it has Placeholder or Resource types
         if (hasPlaceholderType || hasResourceType) {
             console.log('  Processed types:', placeholderTypes);
             
@@ -304,10 +302,10 @@ class LabelFetcher {
         }
         
         try {
-            const label = await this.fetchRdfsLabel(uri);
-            if (label) {
-                this.cache.set(uri, label);
-                return label;
+            const result = await this.fetchRdfsLabel(uri);
+            if (result) {
+                this.cache.set(uri, result);
+                return result;
             }
         } catch (error) {
             // Silently fail
@@ -336,7 +334,6 @@ class LabelFetcher {
 
     async _doFetch(uri) {
         try {
-            // Special handling for Wikidata entities
             if (uri.includes('wikidata.org/entity/')) {
                 return await this.fetchWikidataLabel(uri);
             }
@@ -371,13 +368,10 @@ class LabelFetcher {
 
     async fetchWikidataLabel(uri) {
         try {
-            // Extract entity ID (Q12345 or P162)
             const match = uri.match(/\/entity\/([QP]\d+)/);
             if (!match) return null;
             
             const entityId = match[1];
-            
-            // Use Wikidata API to get label and description
             const apiUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${entityId}&props=labels|descriptions&languages=en&format=json&origin=*`;
             
             const response = await fetch(apiUrl);
@@ -390,11 +384,11 @@ class LabelFetcher {
                 const label = entity.labels?.en?.value;
                 const description = entity.descriptions?.en?.value;
                 
-                // Return label with description if available
-                if (label && description) {
-                    return `${label} - ${description}`;
-                } else if (label) {
-                    return label;
+                if (label) {
+                    return {
+                        label: label,
+                        description: description || null
+                    };
                 }
             }
             
@@ -409,7 +403,7 @@ class LabelFetcher {
         const patterns = [
             new RegExp(`<${uri.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}>\\s+rdfs:label\\s+"([^"]+)"`, 'i'),
             /rdfs:label\s+"([^"]+)"/i,
-            /<http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label>\s+"([^"]+)"/i
+            /<http:\/\/www\.w3.org\/2000\/01\/rdf-schema#label>\s+"([^"]+)"/i
         ];
         
         for (const pattern of patterns) {
@@ -491,7 +485,7 @@ class LabelFetcher {
     }
 }
 
-// ============= NANOPUB PARSER (COMBINED BEST OF BOTH) =============
+// ============= NANOPUB PARSER =============
 class NanopubParser {
     constructor(content, templateContent) {
         this.content = content;
@@ -565,8 +559,9 @@ class NanopubParser {
         if (this.template) {
             fetchedLabels.forEach((label, uri) => {
                 if (!this.template.labels[uri]) {
+                    console.log(`About to add label for ${uri}, type:`, typeof label, 'value:', label);
                     this.template.labels[uri] = label;
-                    console.log(`Added fetched label for ${uri}: ${label}`);
+                    console.log(`After adding, stored type:`, typeof this.template.labels[uri], 'value:', this.template.labels[uri]);
                 }
             });
         }
@@ -898,7 +893,12 @@ class NanopubParser {
         }
 
         if (this.template && this.template.labels) {
-            Object.assign(result.entityLabels, this.template.labels);
+            console.log('=== COPYING LABELS TO entityLabels ===');
+            for (const [uri, labelData] of Object.entries(this.template.labels)) {
+                console.log(`Copying ${uri}:`, typeof labelData, labelData);
+                result.entityLabels[uri] = labelData;
+                console.log(`After copy, entityLabels[${uri}]:`, typeof result.entityLabels[uri], result.entityLabels[uri]);
+            }
         }
 
         this.data.pubinfo.forEach(triple => {
@@ -927,7 +927,13 @@ class NanopubParser {
                 result.title = triple.object;
             }
             if (triple.predicate.includes('hasLabelFromApi')) {
-                result.entityLabels[triple.subject] = triple.object;
+                // Only store if we don't already have an object (from Wikidata API)
+                if (!result.entityLabels[triple.subject] || typeof result.entityLabels[triple.subject] !== 'object') {
+                    console.log('Found hasLabelFromApi - storing:', triple.subject, triple.object);
+                    result.entityLabels[triple.subject] = triple.object;
+                } else {
+                    console.log('Skipping hasLabelFromApi - already have object for:', triple.subject);
+                }
             }
         });
 
@@ -961,6 +967,11 @@ class NanopubParser {
     }
 
     matchTemplateToData(entityLabels) {
+        console.log('=== matchTemplateToData - entityLabels received ===');
+        for (const [uri, labelData] of Object.entries(entityLabels)) {
+            console.log(`  ${uri}:`, typeof labelData, labelData);
+        }
+        
         const structured = [];
         const matched = new Set();
         
@@ -991,16 +1002,13 @@ class NanopubParser {
             }
         });
         
-        // Find main entity placeholder (the one that appears most frequently)
         for (let [placeholder, count] of Object.entries(placeholderOccurrences)) {
             if (count > 1) {
                 mainEntityPlaceholder = placeholder;
                 mainEntityLabel = this.template.placeholders[placeholder]?.label || 'Subject';
                 
-                // STRATEGY 1: Try simple detection (check first statement)
                 const firstStmt = this.template.statements[this.template.statementOrder[0]];
                 if (firstStmt && firstStmt.subject === placeholder) {
-                    // Find any triple with this predicate
                     const matchingTriple = this.data.assertions.find(t => 
                         t.predicate === firstStmt.predicate
                     );
@@ -1010,7 +1018,6 @@ class NanopubParser {
                     }
                 }
                 
-                // STRATEGY 2: Fallback to complex detection (entity appearing as both subject and object)
                 if (!mainEntityActualValue) {
                     this.data.assertions.forEach(triple => {
                         if (triple.subject.startsWith('http') || triple.subject.startsWith('sub:')) {
@@ -1022,7 +1029,6 @@ class NanopubParser {
                                 t.object === triple.subject
                             );
                             
-                            // For LocalResource types (like sub:annotation), the value IS the subject itself
                             const isLocalResource = triple.subject.startsWith('sub:');
                             
                             if (showsAsSubject && (showsAsObject || isLocalResource) && !mainEntityActualValue) {
@@ -1037,7 +1043,6 @@ class NanopubParser {
             }
         }
         
-        // Create main entity field if found
         if (mainEntityActualValue) {
             const placeholder = this.template.placeholders[mainEntityPlaceholder];
             
@@ -1045,8 +1050,6 @@ class NanopubParser {
             console.log('Main entity value:', mainEntityActualValue);
             console.log('Placeholder types:', placeholder?.types);
             
-            // Check if this is ONLY IntroducedResource (and LocalResource) without any placeholder type
-            // These are structural identifiers, not user content
             const hasOnlyResourceTypes = placeholder && 
                 placeholder.types.every(t => t === 'IntroducedResource' || t === 'LocalResource');
             
@@ -1057,7 +1060,6 @@ class NanopubParser {
                 let isDecodedUri = false;
                 let fieldType = ['ExternalUriPlaceholder'];
                 
-                // Handle AutoEscapeUriPlaceholder
                 if (placeholder && placeholder.types.includes('AutoEscapeUriPlaceholder')) {
                     const prefix = placeholder.prefix || this.getPlaceholderPrefix(mainEntityPlaceholder);
                     
@@ -1095,7 +1097,6 @@ class NanopubParser {
             placeholderValues.set(mainEntityPlaceholder, new Set([mainEntityActualValue]));
         }
         
-        // Process all statements in order
         this.template.statementOrder.forEach(stmtId => {
             const stmt = this.template.statements[stmtId];
             if (!stmt) return;
@@ -1132,7 +1133,6 @@ class NanopubParser {
                 console.log('  Expected subjects for', stmt.subject, ':', expectedSubjects ? Array.from(expectedSubjects) : 'not yet determined');
             }
             
-            // Find matching triples
             this.data.assertions.forEach(triple => {
                 if (predicateIsPlaceholder) {
                     if (expectedPredicates && expectedPredicates.size > 0) {
@@ -1217,7 +1217,6 @@ class NanopubParser {
             if (matchingTriples.length > 0) {
                 console.log('Found', matchingTriples.length, 'matching triples for statement', stmtId);
                 
-                // Record placeholder values for future statements
                 if (stmt.predicate && stmt.predicate.startsWith('sub:')) {
                     if (!placeholderValues.has(stmt.predicate)) {
                         placeholderValues.set(stmt.predicate, new Set());
@@ -1256,7 +1255,6 @@ class NanopubParser {
                 console.log('  Subject placeholder?', stmt.subject, subjectPlaceholder ? 'YES' : 'NO');
                 console.log('  Main entity?', stmt.subject === mainEntityPlaceholder);
                 
-                // Create subject field if needed
                 if (stmt.subject && stmt.subject.startsWith('sub:') && stmt.subject !== 'CREATOR' && 
                     stmt.subject !== mainEntityPlaceholder && subjectPlaceholder) {
                     
@@ -1286,14 +1284,12 @@ class NanopubParser {
                         console.log('  Unique subjects found:', Array.from(uniqueSubjects));
                         
                         uniqueSubjects.forEach(subjectUri => {
-                            let displayValue = subjectUri;
+                            const labelData = entityLabels[subjectUri];
                             console.log('  Looking up label for subject:', subjectUri);
-                            if (entityLabels[subjectUri]) {
-                                displayValue = entityLabels[subjectUri];
-                                console.log('    Found label:', displayValue);
-                            } else {
-                                console.log('    No label found');
-                            }
+                            console.log('    Label data type:', typeof labelData);
+                            console.log('    Label data value:', labelData);
+                            
+                            let displayValue = labelData || subjectUri;
                             
                             subjectField.values.push({
                                 raw: subjectUri,
@@ -1306,27 +1302,23 @@ class NanopubParser {
                     }
                 }
                 
-                // Check if we already processed this exact statement
                 const alreadyProcessed = structured.some(f => f.statementId === stmtId);
                 
                 if (alreadyProcessed) {
                     console.log('  Already processed statement', stmtId, '- skipping duplicate');
-                    return; // Skip this duplicate
+                    return;
                 }
                 
-                // Check if we already have a field for this predicate (for repeatable statements)
                 const existingField = structured.find(f => f.predicateUri === actualPredicate);
                 
                 if (existingField && stmt.repeatable) {
                     matchingTriples.forEach(triple => {
-                        let displayValue = triple.object;
+                        const labelData = entityLabels[triple.object];
                         console.log('Looking up label for object:', triple.object);
-                        if (entityLabels[triple.object]) {
-                            displayValue = entityLabels[triple.object];
-                            console.log('  Found label:', displayValue);
-                        } else {
-                            console.log('  No label found');
-                        }
+                        console.log('  Label data type:', typeof labelData);
+                        console.log('  Label data value:', labelData);
+                        
+                        let displayValue = labelData || triple.object;
                         
                         existingField.values.push({
                             raw: triple.object,
@@ -1335,10 +1327,10 @@ class NanopubParser {
                         });
                     });
                 } else {
-                    // Create new field
                     let fieldLabel;
-                    
+
                     if (this.template.labels[actualPredicate]) {
+                        // Keep the whole object (with label and description if present)
                         fieldLabel = this.template.labels[actualPredicate];
                     }
                     else if (objectPlaceholder && objectPlaceholder.label) {
@@ -1362,14 +1354,12 @@ class NanopubParser {
                     };
                     
                     matchingTriples.forEach(triple => {
-                        let displayValue = triple.object;
+                        const labelData = entityLabels[triple.object];
                         console.log('Looking up label for object:', triple.object);
-                        if (entityLabels[triple.object]) {
-                            displayValue = entityLabels[triple.object];
-                            console.log('  Found label:', displayValue);
-                        } else {
-                            console.log('  No label found');
-                        }
+                        console.log('  Label data type:', typeof labelData);
+                        console.log('  Label data value:', labelData);
+                        
+                        let displayValue = labelData || triple.object;
                         
                         field.values.push({
                             raw: triple.object,
@@ -1383,7 +1373,6 @@ class NanopubParser {
             }
         });
         
-        // Add unmatched assertions
         this.data.assertions.forEach(triple => {
             if (!matched.has(triple)) {
                 structured.push({
@@ -1399,8 +1388,6 @@ class NanopubParser {
             }
         });
         
-        // Filter out fields where all values are LocalResource identifiers (sub:*)
-        // These are structural pointers, not displayable content
         const filteredStructured = structured.filter(field => {
             const allValuesAreLocalResources = field.values.every(v => 
                 typeof v.raw === 'string' && v.raw.startsWith('sub:')
