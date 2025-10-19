@@ -235,6 +235,7 @@ function displayPublication(data) {
         
         data.structuredData.forEach(field => {
             if (field.values.length === 0 && field.optional) return;
+            if (field.isMainEntity) return;
             
             html += `<div class="field-group">`;
             // Make the label clickable if we have a predicate URI
@@ -251,10 +252,11 @@ function displayPublication(data) {
                     html += '<li>' + formatValue(val, field.type) + '</li>';
                 });
                 html += '</ul>';
-            } else {
-                field.values.forEach(val => {
-                    html += formatValue(val, field.type);
-                });
+            }  else {
+    field.values.forEach( (val, index)  => {
+                if (index > 0) html += ', ';  // Add comma and space between values
+        html += formatValue(val, field.type);
+    });
             }
             
             html += `</div></div>`;
