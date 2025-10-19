@@ -285,15 +285,13 @@ function displayPublication(data) {
             const doiPart = mainEntityUri.split('doi.org/')[1];
             console.log('DOI part:', doiPart);
             
-            // Clean the display value of any extra spaces
             const cleanDisplay = mainEntityDisplay ? mainEntityDisplay.replace(/\s+/g, '') : '';
             console.log('Clean display:', cleanDisplay);
             
-            // Try to find the DOI part in the title in various formats
             const patterns = [
-                cleanDisplay,       // Try the cleaned display value first
-                doiPart,            // Try the full DOI part
-                doiPart.split('/').pop(),  // Try just the last part
+                cleanDisplay,
+                doiPart,
+                doiPart.split('/').pop(),
             ];
             
             console.log('Trying patterns:', patterns);
@@ -310,28 +308,22 @@ function displayPublication(data) {
                 }
             }
         } else {
-            // For non-DOI URIs, try multiple strategies
             const patterns = [];
             
-            // 1. Try the display value
             if (mainEntityDisplay) {
                 patterns.push(mainEntityDisplay);
             }
             
-            // 2. Try parsing the URI for common patterns
             if (mainEntityUri.startsWith('http')) {
-                // Get the last part of the path (after last /)
                 const uriParts = mainEntityUri.split('/').filter(p => p);
                 const lastPart = uriParts[uriParts.length - 1];
                 if (lastPart) patterns.push(lastPart);
                 
-                // Get the part before last / (useful for paths like /TR/shacl/)
                 if (uriParts.length > 1) {
                     const secondLast = uriParts[uriParts.length - 2];
                     if (secondLast) patterns.push(secondLast);
                 }
                 
-                // Try the fragment (after #)
                 if (mainEntityUri.includes('#')) {
                     const fragment = mainEntityUri.split('#')[1];
                     if (fragment) patterns.push(fragment);
@@ -393,8 +385,6 @@ function displayPublication(data) {
         data.structuredData.forEach(field => {
             if (field.values.length === 0 && field.optional) return;
             
-            // Show main entity field if it's decoded (like AIDA sentences) or substantial content
-            // Only skip simple URI main entities
             const isDecodedContent = field.isDecodedUri || (field.values.length > 0 && 
                 typeof field.values[0].display === 'string' && field.values[0].display.length > 50);
             
@@ -502,10 +492,15 @@ function displayPublication(data) {
         html += createdByHtml;
     }
 
+    // NEW: Add citation section
+    html += buildCitationSection(data);
+
     document.getElementById('publication').innerHTML = html;
     document.getElementById('publication').classList.add('active');
+    
+    // Store data globally for citation functions to access
+    window.currentNanopubData = data;
 }
-
 // ============= UTILITY FUNCTIONS =============
 function formatValue(val, types, isDecodedUri) {
     const isUri = val.raw && val.raw.startsWith('http');
@@ -824,3 +819,112 @@ window.toggleDescription = function(descId) {
         }
     }
 };
+
+/**
+ * Build the citation section HTML
+ */
+function buildCitationSection(data) {
+    const defaultCitation = generateCitation(data, 'apa');
+    
+    return `
+        <div class="citation-section">
+            <h3><i class="fas fa-quote-right"></i> Cite This Nanopublication</h3>
+            
+            <div class="citation-formats">
+                <button class="citation-format-btn active" onclick="switchCitationFormat('apa', window.currentNanopubData)">
+                    <i class="fas fa-book"></i> APA
+                </button>
+                <button class="citation-format-btn" onclick="switchCitationFormat('mla', window.currentNanopubData)">
+                    <i class="fas fa-graduation-cap"></i> MLA
+                </button>
+                <button class="citation-format-btn" onclick="switchCitationFormat('chicago', window.currentNanopubData)">
+                    <i class="fas fa-landmark"></i> Chicago
+                </button>
+                <button class="citation-format-btn" onclick="switchCitationFormat('bibtex', window.currentNanopubData)">
+                    <i class="fas fa-code"></i> BibTeX
+                </button>
+            </div>
+            
+            <div class="citation-display">
+                <div id="citation-text">${defaultCitation}</div>
+            </div>
+            
+            <div class="citation-actions">
+                <button class="citation-copy-btn" onclick="copyCitation('apa', window.currentNanopubData)">
+                    <i class="fas fa-copy"></i> Copy Citation
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// ============= CITATION SUPPORT =============
+
+/**
+ * Generate citation in different formats
+ */
+function generateCitation(data, format = 'apa') {
+    const author = data.authorName || 'Unknown Author';
+    const year = data.date ? new Date(data.date).getFullYear() : 'n.d.';
+    const title = data.title || 'Untitled Nanopublication';
+    const uri = data.uri;
+    
+    // Extract just the nanopub ID for cleaner display
+    const npId = uri.split('/').pop();
+    
+    const formats = {
+        apa: `${author}. (${year}). <em>${title}</em> [Nanopublication]. ${uri}`,
+        mla: `${author}. "${title}." <em>Nanopublication</em>, ${year}, ${uri}.`,
+        chicago: `${author}. "${title}." Nanopublication. ${year}. ${uri}.`,
+        bibtex: `@misc{nanopub_${npId},
+  author = {${author}},
+  title = {${title}},
+  year = {${year}},
+  howpublished = {Nanopublication},
+  url = {${uri}}
+}`
+    };
+    
+    return formats[format] || formats.apa;
+}
+
+/**
+ * Copy citation to clipboard
+ */
+function copyCitation(format, data) {
+    const citation = generateCitation(data, format);
+    
+    // Strip HTML tags for plain text copy
+    const plainText = citation.replace(/<[^>]*>/g, '');
+    
+    navigator.clipboard.writeText(plainText).then(() => {
+        // Show success feedback
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.style.background = '#10b981';
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.style.background = '';
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy citation:', err);
+        alert('Failed to copy to clipboard');
+    });
+}
+
+/**
+ * Switch displayed citation format
+ */
+function switchCitationFormat(format, data) {
+    const citationText = document.getElementById('citation-text');
+    const citation = generateCitation(data, format);
+    citationText.innerHTML = citation;
+    
+    // Update active button state
+    document.querySelectorAll('.citation-format-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+}
