@@ -1,15 +1,37 @@
-/* Science Live Color Palette - Customizable via CSS Variables */
+/* Science Live Color Palette - Refined Professional Version */
 :root {
+    /* Primary colors - keep your brand */
     --primary: #be2e78;
     --primary-hover: #a02463;
+    --primary-light: #f5e8f0;
+    --primary-dark: #8d1f57;
+    
+    /* Secondary - more professional navy */
     --secondary: #101e43;
+    --secondary-light: #1a2d5a;
+    
+    /* Neutrals - warmer, more sophisticated */
+    --text-dark: #1a1a1a;
+    --text-medium: #4a4a4a;
+    --text-light: #6b7280;
+    --text-muted: #9ca3af;
+    
+    /* Backgrounds - softer, less stark */
+    --bg-white: #ffffff;
+    --bg-light: #f8f9fa;
+    --bg-subtle: #f3f4f6;
+    
+    /* Borders - more refined */
+    --border-light: #e5e7eb;
+    --border: #d1d5db;
+    --border-strong: #9ca3af;
+    
+    /* Assertion box - refined */
+    --assertion-bg: #fef3f7;
+    --assertion-border: var(--primary);
+    
+    /* Accent */
     --accent: #f8deed;
-    --text-dark: #333;
-    --text-light: #666;
-    --bg-light: #f5f5f5;
-    --border: #ddd;
-    --assertion-bg: #fffef0;
-    --assertion-border: #be2e78;
 }
 
 * {
@@ -19,10 +41,18 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    line-height: 1.6;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.65;
     color: var(--text-dark);
     background: #fff;
+    font-size: 16px;
+}
+
+/* Typography Hierarchy */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--secondary);
 }
 
 .container {
@@ -35,13 +65,14 @@ body {
     text-align: center;
     margin-bottom: 40px;
     padding-bottom: 20px;
-    border-bottom: 2px solid var(--border);
+    border-bottom: 2px solid var(--border-light);
 }
 
 .header h1 {
     font-size: 2.2em;
     color: var(--secondary);
     margin-bottom: 10px;
+    letter-spacing: -0.02em;
 }
 
 .header p {
@@ -54,6 +85,7 @@ body {
     border-radius: 8px;
     padding: 30px;
     margin-bottom: 30px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .input-group {
@@ -65,6 +97,8 @@ body {
     margin-bottom: 10px;
     font-weight: 600;
     color: var(--secondary);
+    font-size: 0.95em;
+    letter-spacing: -0.005em;
 }
 
 textarea {
@@ -73,14 +107,16 @@ textarea {
     padding: 12px;
     border: 1px solid var(--border);
     border-radius: 4px;
-    font-family: 'Courier New', monospace;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 13px;
     resize: vertical;
+    letter-spacing: -0.01em;
 }
 
 textarea:focus {
     outline: none;
     border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(190, 46, 120, 0.1);
 }
 
 .btn {
@@ -92,21 +128,29 @@ textarea:focus {
     cursor: pointer;
     font-size: 16px;
     font-weight: 600;
-    transition: all 0.3s;
+    letter-spacing: 0.01em;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
 }
 
 .btn:hover {
     background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(190, 46, 120, 0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
 }
 
 .publication {
     background: white;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-light);
     border-radius: 8px;
     padding: 0;
     display: none;
     margin-bottom: 40px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .publication.active {
@@ -115,15 +159,17 @@ textarea:focus {
 
 .pub-header {
     padding: 30px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-light);
     background: linear-gradient(135deg, rgba(16, 30, 67, 0.05) 0%, rgba(190, 46, 120, 0.05) 100%);
 }
 
 .pub-title {
-    font-size: 1.8em;
+    font-size: 1.75em;
     color: var(--secondary);
     margin-bottom: 20px;
     line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.02em;
 }
 
 .template-type {
@@ -135,6 +181,7 @@ textarea:focus {
     font-size: 0.85em;
     font-weight: 600;
     margin-bottom: 15px;
+    letter-spacing: 0.01em;
 }
 
 .pub-meta {
@@ -156,9 +203,11 @@ textarea:focus {
 .meta-item a {
     color: var(--primary);
     text-decoration: none;
+    transition: color 0.2s;
 }
 
 .meta-item a:hover {
+    color: var(--primary-hover);
     text-decoration: underline;
 }
 
@@ -181,7 +230,7 @@ textarea:focus {
     font-size: 1.2em;
     cursor: pointer;
     padding: 5px;
-    transition: opacity 0.2s;
+    transition: all 0.2s;
     color: var(--secondary);
 }
 
@@ -193,9 +242,9 @@ textarea:focus {
 .share-dropdown {
     position: fixed;
     background: white;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-light);
     border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     min-width: 200px;
     z-index: 1000;
     display: none;
@@ -208,12 +257,13 @@ textarea:focus {
 .share-dropdown-item {
     padding: 12px 16px;
     cursor: pointer;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-light);
     font-size: 0.95em;
     transition: background-color 0.2s;
     display: flex;
     align-items: center;
     gap: 10px;
+    color: var(--text-dark);
 }
 
 .share-dropdown-item i {
@@ -226,12 +276,12 @@ textarea:focus {
 }
 
 .share-dropdown-item:hover {
-    background-color: var(--accent);
+    background-color: var(--bg-subtle);
 }
 
 .share-dropdown-divider {
     height: 1px;
-    background-color: var(--border);
+    background-color: var(--border-light);
     margin: 8px 0;
 }
 
@@ -244,19 +294,20 @@ textarea:focus {
     color: var(--secondary);
     margin-bottom: 20px;
     font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 .assertion-box {
-    background: #f5e8f0;
-    border-left: 4px solid var(--primary);
-    padding: 20px;
+    background: var(--assertion-bg);
+    border-left: 3px solid var(--primary);
+    padding: 24px;
     border-radius: 4px;
 }
 
 .field-group {
     margin-bottom: 20px;
     padding-bottom: 20px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-light);
 }
 
 .field-group:last-child {
@@ -269,6 +320,8 @@ textarea:focus {
     color: var(--primary);
     margin-bottom: 8px;
     display: block;
+    font-size: 0.95em;
+    letter-spacing: -0.005em;
 }
 
 .field-value {
@@ -279,9 +332,11 @@ textarea:focus {
 .field-value a {
     color: var(--primary);
     text-decoration: none;
+    transition: color 0.2s;
 }
 
 .field-value a:hover {
+    color: var(--primary-hover);
     text-decoration: underline;
 }
 
@@ -299,6 +354,7 @@ textarea:focus {
     padding: 10px;
     border-radius: 4px;
     margin: 5px 0;
+    border: 1px solid var(--border-light);
 }
 
 .long-literal {
@@ -312,7 +368,7 @@ textarea:focus {
 
 .provenance-section {
     background: var(--bg-light);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-light);
 }
 
 .error {
@@ -322,6 +378,7 @@ textarea:focus {
     border-radius: 4px;
     margin: 20px 0;
     display: none;
+    border-left: 3px solid #c00;
 }
 
 .error.active {
@@ -343,7 +400,7 @@ textarea:focus {
     background: var(--bg-light);
     padding: 15px;
     border-radius: 4px;
-    font-family: 'Courier New', monospace;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 0.85em;
 }
 
@@ -352,16 +409,6 @@ textarea:focus {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
-}
-
-.decoded-sentence {
-    font-size: 1.1em;
-    line-height: 1.6;
-    padding: 15px;
-    background: white;
-    border-radius: 4px;
-    margin: 10px 0;
-    font-weight: 500;
 }
 
 .decoded-sentence {
@@ -385,47 +432,6 @@ textarea:focus {
 .main-entity-group .field-value {
     margin-left: 0;
 }
-.wikidata-link {
-    position: relative;
-    display: inline-block;
-    color: var(--primary);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--primary);
-}
-
-.wikidata-link:hover {
-    text-decoration: none;
-}
-
-.wikidata-link[data-description]:hover::after {
-    content: attr(data-description);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #333;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 4px;
-    white-space: nowrap;
-    z-index: 1000;
-    margin-bottom: 5px;
-    font-size: 14px;
-    max-width: 300px;
-    white-space: normal;
-}
-
-.wikidata-link[data-description]:hover::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #333;
-    margin-bottom: -5px;
-}
-
 
 /* Wikidata link with description toggle */
 .wikidata-item {
@@ -438,11 +444,13 @@ textarea:focus {
     text-decoration: none;
     border-bottom: 1px dotted var(--primary);
     cursor: pointer;
+    transition: all 0.2s;
 }
 
 .wikidata-link:hover {
     text-decoration: none;
     opacity: 0.8;
+    color: var(--primary-hover);
 }
 
 .wikidata-link.has-description::after {
@@ -458,7 +466,7 @@ textarea:focus {
     font-style: italic;
     padding: 8px 12px;
     margin-top: 4px;
-    background: #f8f9fa;
+    background: var(--bg-subtle);
     border-left: 3px solid var(--primary);
     border-radius: 3px;
 }
@@ -467,13 +475,14 @@ textarea:focus {
     display: block;
 }
 
-
+/* Content containers for code/data */
 .content-container {
     margin: 15px 0;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-light);
     border-radius: 8px;
     overflow: hidden;
-    background: #f8f9fa;
+    background: var(--bg-light);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .content-header {
@@ -523,13 +532,14 @@ textarea:focus {
 .content-block {
     margin: 0;
     padding: 20px;
-    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
-    font-size: 0.85em;
-    line-height: 1.6;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    font-size: 0.875em;
+    line-height: 1.7;
+    letter-spacing: -0.01em;
     background: #ffffff;
     color: #2d3748;
     overflow-x: auto;
-    border-top: 2px solid var(--border);
+    border-top: 2px solid var(--border-light);
     white-space: pre-wrap;
     word-wrap: break-word;
     transition: max-height 0.3s ease;
@@ -592,9 +602,10 @@ textarea:focus {
     border-radius: 4px;
     white-space: pre-wrap;
     word-wrap: break-word;
-    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
-    font-size: 0.9em;
-    line-height: 1.5;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    font-size: 0.875em;
+    line-height: 1.7;
+    letter-spacing: -0.01em;
     transition: max-height 0.3s ease;
 }
 
@@ -629,11 +640,12 @@ textarea:focus {
     cursor: pointer;
     color: var(--primary);
     font-size: 0.85em;
-    transition: all 0.2s ease;
+    font-weight: 600;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .show-more-btn:hover {
-    background: #f8f9fa;
+    background: var(--bg-subtle);
     border-color: var(--primary);
     transform: translateY(-1px);
 }
@@ -659,70 +671,6 @@ textarea:focus {
     animation: fadeIn 0.3s ease;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-    .content-header {
-        flex-wrap: wrap;
-    }
-    
-    .content-label {
-        flex-basis: 100%;
-        margin-bottom: 8px;
-    }
-    
-    .content-block {
-        font-size: 0.75em;
-        padding: 15px;
-    }
-    
-    .long-literal {
-        font-size: 0.8em;
-        padding: 10px;
-    }
-}
-
-/* Print styles */
-@media print {
-    .content-toggle,
-    .content-copy,
-    .show-more-btn {
-        display: none;
-    }
-    
-    .content-block,
-    .long-literal {
-        max-height: none !important;
-        overflow: visible !important;
-    }
-    
-    .content-block::after,
-    .long-literal::after {
-        display: none !important;
-    }
-}
-.pub-title a {
-    color: var(--primary);
-    text-decoration: none;
-    border-bottom: 2px solid var(--primary);
-    transition: opacity 0.2s;
-}
-
-.pub-title a:hover {
-    opacity: 0.7;
-}
-/* Add this to styles.css at the end */
-.pub-title .title-link {
-    color: var(--primary);
-    text-decoration: none;
-    border-bottom: 2px solid var(--primary);
-    transition: all 0.2s ease;
-}
-
-.pub-title .title-link:hover {
-    opacity: 0.8;
-    border-bottom-color: var(--primary-hover);
-}
-
 /* Title link styling */
 .pub-title .title-link {
     color: var(--primary);
@@ -733,13 +681,14 @@ textarea:focus {
 
 .pub-title .title-link:hover {
     opacity: 0.8;
+    color: var(--primary-hover);
     border-bottom-color: var(--primary-hover);
 }
 
 /* ============= CITATION SECTION ============= */
 .citation-section {
     background: var(--bg-light);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-light);
     padding: 30px;
     margin-top: 20px;
 }
@@ -749,6 +698,7 @@ textarea:focus {
     color: var(--secondary);
     margin-bottom: 15px;
     font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 .citation-formats {
@@ -767,7 +717,7 @@ textarea:focus {
     cursor: pointer;
     font-size: 0.9em;
     font-weight: 500;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -787,10 +737,11 @@ textarea:focus {
 
 .citation-display {
     background: white;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 20px;
     position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 #citation-text {
@@ -818,7 +769,8 @@ textarea:focus {
     cursor: pointer;
     font-size: 0.9em;
     font-weight: 600;
-    transition: all 0.2s ease;
+    letter-spacing: 0.01em;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -827,14 +779,34 @@ textarea:focus {
 .citation-copy-btn:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(190, 46, 120, 0.15);
 }
 
 .citation-copy-btn:active {
     transform: translateY(0);
 }
 
-/* Responsive design for citation */
+/* Responsive Design */
 @media (max-width: 768px) {
+    .content-header {
+        flex-wrap: wrap;
+    }
+    
+    .content-label {
+        flex-basis: 100%;
+        margin-bottom: 8px;
+    }
+    
+    .content-block {
+        font-size: 0.75em;
+        padding: 15px;
+    }
+    
+    .long-literal {
+        font-size: 0.8em;
+        padding: 10px;
+    }
+    
     .citation-section {
         padding: 20px;
     }
@@ -846,5 +818,25 @@ textarea:focus {
     .citation-format-btn {
         width: 100%;
         justify-content: center;
+    }
+}
+
+/* Print styles */
+@media print {
+    .content-toggle,
+    .content-copy,
+    .show-more-btn {
+        display: none;
+    }
+    
+    .content-block,
+    .long-literal {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    
+    .content-block::after,
+    .long-literal::after {
+        display: none !important;
     }
 }
