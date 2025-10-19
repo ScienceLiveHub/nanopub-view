@@ -840,3 +840,23 @@ textarea:focus {
         display: none !important;
     }
 }
+
+/* IBM Plex Serif - designed for scientific/technical content */
+.content-block, .long-literal {
+    font-family: 'IBM Plex Serif', 'Georgia', 'Times New Roman', serif;
+    font-size: 0.95em;
+    line-height: 1.8;
+    letter-spacing: 0;
+    font-weight: 400;
+}
+
+textarea, .raw-statements {
+    font-family: 'IBM Plex Serif', 'Georgia', serif;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+/* Keep syntax highlighting colors but make them subtler */
+.json-block, .xml-block, .python-block, .javascript-block, .csv-block {
+    color: var(--text-dark);  /* Use regular text color instead of bright colors */
+}
