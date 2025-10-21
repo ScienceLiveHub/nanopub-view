@@ -37,3 +37,6 @@ coverage/
 
 # OS files
 Thumbs.db
+
+# Demo build output
+demo-dist/
