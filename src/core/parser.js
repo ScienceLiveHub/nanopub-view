@@ -486,7 +486,7 @@ class LabelFetcher {
 }
 
 // ============= NANOPUB PARSER =============
-class NanopubParser {
+export class NanopubParser {
     constructor(content, templateContent) {
         this.content = content;
         this.templateContent = templateContent;

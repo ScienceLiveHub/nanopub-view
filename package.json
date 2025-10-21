@@ -1,0 +1,52 @@
+{
+  "name": "@sciencelivehub/nanopub-view",
+  "version": "1.0.0",
+  "description": "A JavaScript library for viewing and rendering nanopublications",
+  "main": "dist/nanopub-viewer.js",
+  "module": "dist/nanopub-viewer.esm.js",
+  "style": "dist/nanopub-viewer.css",
+  "types": "src/react/NanopubViewer.tsx",
+  "exports": {
+    ".": {
+      "import": "./dist/nanopub-viewer.esm.js",
+      "require": "./dist/nanopub-viewer.js",
+      "types": "./src/index.js"
+    },
+    "./react": {
+      "import": "./src/react.js",
+      "types": "./src/react/NanopubViewer.tsx"
+    },
+    "./dist/nanopub-viewer.css": "./dist/nanopub-viewer.css"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo 'No tests yet' && exit 0"
+  },
+  "keywords": [
+    "nanopublication",
+    "rdf",
+    "semantic-web",
+    "viewer",
+    "react"
+  ],
+  "author": "ScienceLiveHub",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ScienceLiveHub/nanopub-view.git"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.26",
+    "react": "^18.3.1",
+    "vite": "^5.0.0"
+  }
+}

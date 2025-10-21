@@ -1,5 +1,5 @@
 /* Science Live Color Palette - Refined Professional Version */
-:root {
+.nanopub-viewer {
     /* Primary colors - keep your brand */
     --primary: #be2e78;
     --primary-hover: #a02463;
@@ -34,13 +34,13 @@
     --accent: #f8deed;
 }
 
-* {
+.nanopub-viewer * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
-body {
+.nanopub-viewer {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     line-height: 1.65;
     color: var(--text-dark);
@@ -49,38 +49,43 @@ body {
 }
 
 /* Typography Hierarchy */
-h1, h2, h3, h4, h5, h6 {
+.nanopub-viewer h1, 
+.nanopub-viewer h2, 
+.nanopub-viewer h3, 
+.nanopub-viewer h4, 
+.nanopub-viewer h5, 
+.nanopub-viewer h6 {
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--secondary);
 }
 
-.container {
+.nanopub-viewer .container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
 }
 
-.header {
+.nanopub-viewer .header {
     text-align: center;
     margin-bottom: 40px;
     padding-bottom: 20px;
     border-bottom: 2px solid var(--border-light);
 }
 
-.header h1 {
+.nanopub-viewer .header h1 {
     font-size: 2.2em;
     color: var(--secondary);
     margin-bottom: 10px;
     letter-spacing: -0.02em;
 }
 
-.header p {
+.nanopub-viewer .header p {
     color: var(--text-light);
     font-style: italic;
 }
 
-.upload-section {
+.nanopub-viewer .upload-section {
     background: var(--accent);
     border-radius: 8px;
     padding: 30px;
@@ -88,11 +93,11 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
-.input-group {
+.nanopub-viewer .input-group {
     margin-bottom: 25px;
 }
 
-.input-group label {
+.nanopub-viewer .input-group label {
     display: block;
     margin-bottom: 10px;
     font-weight: 600;
@@ -101,7 +106,7 @@ h1, h2, h3, h4, h5, h6 {
     letter-spacing: -0.005em;
 }
 
-textarea {
+.nanopub-viewer textarea {
     width: 100%;
     min-height: 120px;
     padding: 12px;
@@ -113,13 +118,13 @@ textarea {
     letter-spacing: -0.01em;
 }
 
-textarea:focus {
+.nanopub-viewer textarea:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(190, 46, 120, 0.1);
 }
 
-.btn {
+.nanopub-viewer  .btn {
     padding: 12px 30px;
     background: var(--primary);
     color: white;
@@ -133,17 +138,17 @@ textarea:focus {
     width: 100%;
 }
 
-.btn:hover {
+.nanopub-viewer .btn:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(190, 46, 120, 0.15);
 }
 
-.btn:active {
+.nanopub-viewer .btn:active {
     transform: translateY(0);
 }
 
-.publication {
+.nanopub-viewer .publication {
     background: white;
     border: 1px solid var(--border-light);
     border-radius: 8px;
@@ -153,17 +158,17 @@ textarea:focus {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.publication.active {
+.nanopub-viewer  .publication.active {
     display: block;
 }
 
-.pub-header {
+.nanopub-viewer .pub-header {
     padding: 30px;
     border-bottom: 1px solid var(--border-light);
     background: linear-gradient(135deg, rgba(16, 30, 67, 0.05) 0%, rgba(190, 46, 120, 0.05) 100%);
 }
 
-.pub-title {
+.nanopub-viewer .pub-title {
     font-size: 1.75em;
     color: var(--secondary);
     margin-bottom: 20px;
@@ -172,7 +177,7 @@ textarea:focus {
     letter-spacing: -0.02em;
 }
 
-.template-type {
+.nanopub-viewer .template-type {
     display: inline-block;
     background: var(--secondary);
     color: white;
@@ -184,47 +189,47 @@ textarea:focus {
     letter-spacing: 0.01em;
 }
 
-.pub-meta {
+.nanopub-viewer .pub-meta {
     display: flex;
     flex-wrap: wrap;
     gap: 30px;
     margin-top: 20px;
 }
 
-.meta-item {
+.nanopub-viewer .meta-item {
     font-size: 0.95em;
 }
 
-.meta-item strong {
+.nanopub-viewer .meta-item strong {
     color: var(--secondary);
     font-weight: 600;
 }
 
-.meta-item a {
+.nanopub-viewer .meta-item a {
     color: var(--primary);
     text-decoration: none;
     transition: color 0.2s;
 }
 
-.meta-item a:hover {
+.nanopub-viewer .meta-item a:hover {
     color: var(--primary-hover);
     text-decoration: underline;
 }
 
-.author-info {
+.nanopub-viewer .author-info {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
 }
 
-.share-button {
+.nanopub-viewer .share-button {
     position: relative;
     display: inline-flex;
     align-items: center;
 }
 
-.share-icon {
+.nanopub-viewer .share-icon {
     background: none;
     border: none;
     font-size: 1.2em;
@@ -234,12 +239,12 @@ textarea:focus {
     color: var(--secondary);
 }
 
-.share-icon:hover {
+.nanopub-viewer .share-icon:hover {
     opacity: 0.7;
     color: var(--primary);
 }
 
-.share-dropdown {
+.nanopub-viewer .share-dropdown {
     position: fixed;
     background: white;
     border: 1px solid var(--border-light);
@@ -250,11 +255,11 @@ textarea:focus {
     display: none;
 }
 
-.share-dropdown.active {
+.nanopub-viewer .share-dropdown.active {
     display: block;
 }
 
-.share-dropdown-item {
+.nanopub-viewer .share-dropdown-item {
     padding: 12px 16px;
     cursor: pointer;
     border-bottom: 1px solid var(--border-light);
@@ -266,30 +271,30 @@ textarea:focus {
     color: var(--text-dark);
 }
 
-.share-dropdown-item i {
+.nanopub-viewer .share-dropdown-item i {
     color: var(--primary);
     width: 16px;
 }
 
-.share-dropdown-item:last-child {
+.nanopub-viewer .share-dropdown-item:last-child {
     border-bottom: none;
 }
 
-.share-dropdown-item:hover {
+.nanopub-viewer .share-dropdown-item:hover {
     background-color: var(--bg-subtle);
 }
 
-.share-dropdown-divider {
+.nanopub-viewer .share-dropdown-divider {
     height: 1px;
     background-color: var(--border-light);
     margin: 8px 0;
 }
 
-.section {
+.nanopub-viewer .section {
     padding: 30px;
 }
 
-.section-title {
+.nanopub-viewer .section-title {
     font-size: 1.4em;
     color: var(--secondary);
     margin-bottom: 20px;
@@ -297,25 +302,25 @@ textarea:focus {
     letter-spacing: -0.01em;
 }
 
-.assertion-box {
+.nanopub-viewer .assertion-box {
     background: var(--assertion-bg);
     border-left: 3px solid var(--primary);
     padding: 24px;
     border-radius: 4px;
 }
 
-.field-group {
+.nanopub-viewer .field-group {
     margin-bottom: 20px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--border-light);
 }
 
-.field-group:last-child {
+.nanopub-viewer .field-group:last-child {
     border-bottom: none;
     padding-bottom: 0;
 }
 
-.field-label {
+.nanopub-viewer .field-label {
     font-weight: 600;
     color: var(--primary);
     margin-bottom: 8px;
@@ -324,32 +329,32 @@ textarea:focus {
     letter-spacing: -0.005em;
 }
 
-.field-value {
+.nanopub-viewer .field-value {
     color: var(--text-dark);
     margin-left: 0;
 }
 
-.field-value a {
+.nanopub-viewer .field-value a {
     color: var(--primary);
     text-decoration: none;
     transition: color 0.2s;
 }
 
-.field-value a:hover {
+.nanopub-viewer .field-value a:hover {
     color: var(--primary-hover);
     text-decoration: underline;
 }
 
-.field-value ul {
+.nanopub-viewer .field-value ul {
     margin: 5px 0;
     padding-left: 20px;
 }
 
-.field-value li {
+.nanopub-viewer .field-value li {
     margin: 3px 0;
 }
 
-.literal-value {
+.nanopub-viewer .literal-value {
     background: white;
     padding: 10px;
     border-radius: 4px;
@@ -357,7 +362,7 @@ textarea:focus {
     border: 1px solid var(--border-light);
 }
 
-.long-literal {
+.nanopub-viewer .long-literal {
     background: white;
     padding: 15px;
     border-left: 3px solid var(--primary);
@@ -366,12 +371,12 @@ textarea:focus {
     white-space: pre-wrap;
 }
 
-.provenance-section {
+.nanopub-viewer .provenance-section {
     background: var(--bg-light);
     border-top: 1px solid var(--border-light);
 }
 
-.error {
+.nanopub-viewer .error {
     background: #fee;
     color: #c00;
     padding: 15px;
@@ -381,22 +386,22 @@ textarea:focus {
     border-left: 3px solid #c00;
 }
 
-.error.active {
+.nanopub-viewer .error.active {
     display: block;
 }
 
-.loading {
+.nanopub-viewer .loading {
     text-align: center;
     padding: 40px;
     color: var(--text-light);
     display: none;
 }
 
-.loading.active {
+.nanopub-viewer .loading.active {
     display: block;
 }
 
-.raw-statements {
+.nanopub-viewer .raw-statements {
     background: var(--bg-light);
     padding: 15px;
     border-radius: 4px;
@@ -404,14 +409,14 @@ textarea:focus {
     font-size: 0.85em;
 }
 
-.statement-row {
+.nanopub-viewer .statement-row {
     padding: 5px 0;
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
 }
 
-.decoded-sentence {
+.nanopub-viewer .decoded-sentence {
     font-size: 1.15em;
     line-height: 1.7;
     padding: 20px;
@@ -423,23 +428,23 @@ textarea:focus {
     border-left: 4px solid var(--primary);
 }
 
-.main-entity-group {
+.nanopub-viewer .main-entity-group {
     border-bottom: 2px solid var(--primary) !important;
     padding-bottom: 25px !important;
     margin-bottom: 25px !important;
 }
 
-.main-entity-group .field-value {
+.nanopub-viewer .main-entity-group .field-value {
     margin-left: 0;
 }
 
 /* Wikidata link with description toggle */
-.wikidata-item {
+.nanopub-viewer .wikidata-item {
     display: inline-block;
     margin: 2px 0;
 }
 
-.wikidata-link {
+.nanopub-viewer .wikidata-link {
     color: var(--primary);
     text-decoration: none;
     border-bottom: 1px dotted var(--primary);
@@ -447,19 +452,19 @@ textarea:focus {
     transition: all 0.2s;
 }
 
-.wikidata-link:hover {
+.nanopub-viewer .wikidata-link:hover {
     text-decoration: none;
     opacity: 0.8;
     color: var(--primary-hover);
 }
 
-.wikidata-link.has-description::after {
+.nanopub-viewer .wikidata-link.has-description::after {
     content: ' ℹ️';
     font-size: 0.85em;
     opacity: 0.6;
 }
 
-.wikidata-description {
+.nanopub-viewer .wikidata-description {
     display: none;
     font-size: 0.9em;
     color: var(--text-light);
@@ -471,12 +476,12 @@ textarea:focus {
     border-radius: 3px;
 }
 
-.wikidata-description.expanded {
+.nanopub-viewer .wikidata-description.expanded {
     display: block;
 }
 
 /* Content containers for code/data */
-.content-container {
+.nanopub-viewer .content-container {
     margin: 15px 0;
     border: 1px solid var(--border-light);
     border-radius: 8px;
@@ -485,7 +490,7 @@ textarea:focus {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.content-header {
+.nanopub-viewer .content-header {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -493,12 +498,12 @@ textarea:focus {
     color: white;
 }
 
-.content-header i.fas:first-child,
-.content-header i.fa-brands:first-child {
+.nanopub-viewer .content-header i.fas:first-child,
+.nanopub-viewer .content-header i.fa-brands:first-child {
     font-size: 1.1em;
 }
 
-.content-label {
+.nanopub-viewer .content-label {
     flex: 1;
     font-weight: 600;
     font-size: 0.9em;
@@ -506,8 +511,8 @@ textarea:focus {
     letter-spacing: 0.5px;
 }
 
-.content-toggle,
-.content-copy {
+.nanopub-viewer .content-toggle,
+.nanopub-viewer .content-copy {
     background: rgba(255, 255, 255, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
@@ -518,18 +523,18 @@ textarea:focus {
     font-size: 0.9em;
 }
 
-.content-toggle:hover,
-.content-copy:hover {
+.nanopub-viewer .content-toggle:hover,
+.nanopub-viewer .content-copy:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: translateY(-1px);
 }
 
-.content-toggle:active,
-.content-copy:active {
+.nanopub-viewer .content-toggle:active,
+.nanopub-viewer .content-copy:active {
     transform: translateY(0);
 }
 
-.content-block {
+.nanopub-viewer .content-block {
     margin: 0;
     padding: 20px;
     font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
@@ -545,13 +550,13 @@ textarea:focus {
     transition: max-height 0.3s ease;
 }
 
-.content-block.collapsed {
+.nanopub-viewer .content-block.collapsed {
     max-height: 150px;
     overflow: hidden;
     position: relative;
 }
 
-.content-block.collapsed::after {
+.nanopub-viewer .content-block.collapsed::after {
     content: '';
     position: absolute;
     bottom: 0;
@@ -562,40 +567,40 @@ textarea:focus {
     pointer-events: none;
 }
 
-.content-block.expanded {
+.nanopub-viewer .content-block.expanded {
     max-height: none;
 }
 
 /* Specific content type styling tweaks */
-.json-block {
+.nanopub-viewer .json-block {
     color: #0066cc;
 }
 
-.xml-block {
+.nanopub-viewer .xml-block {
     color: #cc6600;
 }
 
-.python-block,
-.javascript-block {
+.nanopub-viewer .python-block,
+.nanopub-viewer .javascript-block {
     color: #006633;
 }
 
-.markdown-block {
+.nanopub-viewer .markdown-block {
     color: #333333;
 }
 
-.csv-block {
+.nanopub-viewer .csv-block {
     font-family: monospace;
     color: #666666;
 }
 
 /* Long Literal Container (for non-code content) */
-.long-literal-container {
+.nanopub-viewer .long-literal-container {
     position: relative;
     margin: 10px 0;
 }
 
-.long-literal {
+.nanopub-viewer .long-literal {
     background: white;
     padding: 15px;
     border-left: 3px solid var(--primary);
@@ -609,13 +614,13 @@ textarea:focus {
     transition: max-height 0.3s ease;
 }
 
-.long-literal.collapsed {
+.nanopub-viewer .long-literal.collapsed {
     max-height: 120px;
     overflow: hidden;
     position: relative;
 }
 
-.long-literal.collapsed::after {
+.nanopub-viewer .long-literal.collapsed::after {
     content: '';
     position: absolute;
     bottom: 0;
@@ -626,11 +631,11 @@ textarea:focus {
     pointer-events: none;
 }
 
-.long-literal.expanded {
+.nanopub-viewer .long-literal.expanded {
     max-height: none;
 }
 
-.show-more-btn {
+.nanopub-viewer .show-more-btn {
     display: block;
     margin: 10px auto 0;
     padding: 8px 16px;
@@ -644,18 +649,18 @@ textarea:focus {
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.show-more-btn:hover {
+.nanopub-viewer .show-more-btn:hover {
     background: var(--bg-subtle);
     border-color: var(--primary);
     transform: translateY(-1px);
 }
 
-.show-more-btn i {
+.nanopub-viewer .show-more-btn i {
     transition: transform 0.2s ease;
 }
 
 /* Animation for expand/collapse */
-@keyframes fadeIn {
+@keyframes nanopub-viewer-fadeIn {
     from {
         opacity: 0;
         transform: translateY(-10px);
@@ -666,34 +671,34 @@ textarea:focus {
     }
 }
 
-.content-block.expanded,
-.long-literal.expanded {
+.nanopub-viewer .content-block.expanded,
+.nanopub-viewer .long-literal.expanded {
     animation: fadeIn 0.3s ease;
 }
 
 /* Title link styling */
-.pub-title .title-link {
+.nanopub-viewer .pub-title .title-link {
     color: var(--primary);
     text-decoration: none;
     border-bottom: 2px solid var(--primary);
     transition: all 0.2s ease;
 }
 
-.pub-title .title-link:hover {
+.nanopub-viewer .pub-title .title-link:hover {
     opacity: 0.8;
     color: var(--primary-hover);
     border-bottom-color: var(--primary-hover);
 }
 
 /* ============= CITATION SECTION ============= */
-.citation-section {
+.nanopub-viewer .citation-section {
     background: var(--bg-light);
     border-top: 1px solid var(--border-light);
     padding: 30px;
     margin-top: 20px;
 }
 
-.citation-section h3 {
+.nanopub-viewer .citation-section h3 {
     font-size: 1.2em;
     color: var(--secondary);
     margin-bottom: 15px;
@@ -701,14 +706,14 @@ textarea:focus {
     letter-spacing: -0.01em;
 }
 
-.citation-formats {
+.nanopub-viewer .citation-formats {
     display: flex;
     gap: 10px;
     margin-bottom: 15px;
     flex-wrap: wrap;
 }
 
-.citation-format-btn {
+.nanopub-viewer .citation-format-btn {
     padding: 8px 16px;
     background: white;
     border: 2px solid var(--border);
@@ -723,19 +728,19 @@ textarea:focus {
     gap: 6px;
 }
 
-.citation-format-btn:hover {
+.nanopub-viewer .citation-format-btn:hover {
     border-color: var(--primary);
     color: var(--primary);
     transform: translateY(-1px);
 }
 
-.citation-format-btn.active {
+.nanopub-viewer .citation-format-btn.active {
     background: var(--primary);
     color: white;
     border-color: var(--primary);
 }
 
-.citation-display {
+.nanopub-viewer .citation-display {
     background: white;
     border: 1px solid var(--border-light);
     border-radius: 4px;
@@ -744,7 +749,7 @@ textarea:focus {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-#citation-text {
+.nanopub-viewer .citation-text {
     font-family: Georgia, 'Times New Roman', serif;
     font-size: 0.95em;
     line-height: 1.6;
@@ -754,13 +759,13 @@ textarea:focus {
     word-wrap: break-word;
 }
 
-.citation-actions {
+.nanopub-viewer .citation-actions {
     display: flex;
     gap: 10px;
     margin-top: 15px;
 }
 
-.citation-copy-btn {
+.nanopub-viewer .citation-copy-btn {
     padding: 10px 20px;
     background: var(--primary);
     color: white;
@@ -776,46 +781,46 @@ textarea:focus {
     gap: 8px;
 }
 
-.citation-copy-btn:hover {
+.nanopub-viewer .citation-copy-btn:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(190, 46, 120, 0.15);
 }
 
-.citation-copy-btn:active {
+.nanopub-viewer .citation-copy-btn:active {
     transform: translateY(0);
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .content-header {
+    .nanopub-viewer .content-header {
         flex-wrap: wrap;
     }
     
-    .content-label {
+    .nanopub-viewer .content-label {
         flex-basis: 100%;
         margin-bottom: 8px;
     }
     
-    .content-block {
+    .nanopub-viewer .content-block {
         font-size: 0.75em;
         padding: 15px;
     }
     
-    .long-literal {
+    .nanopub-viewer .long-literal {
         font-size: 0.8em;
         padding: 10px;
     }
     
-    .citation-section {
+    .nanopub-viewer .citation-section {
         padding: 20px;
     }
     
-    .citation-formats {
+    .nanopub-viewer .citation-formats {
         flex-direction: column;
     }
     
-    .citation-format-btn {
+    .nanopub-viewer .citation-format-btn {
         width: 100%;
         justify-content: center;
     }
@@ -823,26 +828,27 @@ textarea:focus {
 
 /* Print styles */
 @media print {
-    .content-toggle,
-    .content-copy,
-    .show-more-btn {
+    .nanopub-viewer .content-toggle,
+    .nanopub-viewer .content-copy,
+    .nanopub-viewer .show-more-btn {
         display: none;
     }
     
-    .content-block,
-    .long-literal {
+    .nanopub-viewer .content-block,
+    .nanopub-viewer .long-literal {
         max-height: none !important;
         overflow: visible !important;
     }
     
-    .content-block::after,
-    .long-literal::after {
+    .nanopub-viewer .content-block::after,
+    .nanopub-viewer .long-literal::after {
         display: none !important;
     }
 }
 
 /* IBM Plex Serif - designed for scientific/technical content */
-.content-block, .long-literal {
+.nanopub-viewer .content-block, 
+.nanopub-viewer .long-literal {
     font-family: 'IBM Plex Serif', 'Georgia', 'Times New Roman', serif;
     font-size: 0.95em;
     line-height: 1.8;
@@ -850,13 +856,18 @@ textarea:focus {
     font-weight: 400;
 }
 
-textarea, .raw-statements {
+.nanopub-viewer textarea, 
+.nanopub-viewer .raw-statements {
     font-family: 'IBM Plex Serif', 'Georgia', serif;
     font-size: 14px;
     line-height: 1.7;
 }
 
 /* Keep syntax highlighting colors but make them subtler */
-.json-block, .xml-block, .python-block, .javascript-block, .csv-block {
+.nanopub-viewer .json-block, 
+.nanopub-viewer .xml-block, 
+.nanopub-viewer .python-block, 
+.nanopub-viewer .javascript-block, 
+.nanopub-viewer .csv-block {
     color: var(--text-dark);  /* Use regular text color instead of bright colors */
 }

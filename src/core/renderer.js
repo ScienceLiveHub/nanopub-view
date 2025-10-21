@@ -1,34 +1,3 @@
-// ============= FILE UPLOAD HANDLERS =============
-document.getElementById('npFile').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        document.getElementById('npFileName').textContent = file.name;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('npContent').value = e.target.result;
-        };
-        reader.onerror = function(e) {
-            showError('Error reading file: ' + e.target.error);
-        };
-        reader.readAsText(file);
-    }
-});
-
-document.getElementById('templateFile').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        document.getElementById('templateFileName').textContent = file.name;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('templateContent').value = e.target.result;
-        };
-        reader.onerror = function(e) {
-            showError('Error reading file: ' + e.target.error);
-        };
-        reader.readAsText(file);
-    }
-});
-
 // ============= SHARE BUTTON HANDLERS =============
 window.copyNanopubLink = function(uri) {
     navigator.clipboard.writeText(uri);
@@ -44,6 +13,7 @@ window.copyNanopubLink = function(uri) {
 };
 
 window.openNanopubLink = function(uri) {
+    if (!uri) return;
     const npId = uri.split('/').pop();
     const registryUrl = `https://nanodash.knowledgepixels.com/explore?57&id=${npId}`;
     window.open(registryUrl, '_blank');
@@ -52,6 +22,7 @@ window.openNanopubLink = function(uri) {
 };
 
 window.downloadFormat = function(uri, format) {
+    if (!uri) return;
     const npId = uri.split('/').pop();
     const downloadUrl = `https://registry.knowledgepixels.com/np/${npId}.${format}`;
     window.open(downloadUrl, '_blank');
@@ -59,7 +30,7 @@ window.downloadFormat = function(uri, format) {
     dropdown.classList.remove('active');
 };
 
-function toggleShareDropdown(event) {
+window.toggleShareDropdown = function(event) {
     event.stopPropagation();
     const dropdown = document.getElementById('shareDropdown');
     const button = event.target.closest('.share-icon');
@@ -74,185 +45,7 @@ function toggleShareDropdown(event) {
     }
 }
 
-document.addEventListener('click', function(event) {
-    const shareButton = document.querySelector('.share-button');
-    if (shareButton && !shareButton.contains(event.target)) {
-        const dropdown = document.getElementById('shareDropdown');
-        if (dropdown) {
-            dropdown.classList.remove('active');
-        }
-    }
-});
-// ============= FETCH NANOPUB FROM URL =============
-async function fetchNanopubFromUrl() {
-    const urlInput = document.getElementById('npUrl');
-    const url = urlInput.value.trim();
-    
-    if (!url) {
-        showError('Please enter a nanopublication URL');
-        return;
-    }
-    
-    // Extract the nanopub ID from the URL
-    let npId = null;
-    
-    // Handle w3id.org URLs
-    if (url.includes('w3id.org/np/')) {
-        npId = url.split('w3id.org/np/')[1].split(/[?#]/)[0];
-    }
-    // Handle registry.knowledgepixels.com URLs
-    else if (url.includes('registry.knowledgepixels.com/np/')) {
-        npId = url.split('registry.knowledgepixels.com/np/')[1].split(/[?#.]/)[0];
-    }
-    // If just an ID is pasted
-    else if (url.match(/^[A-Za-z0-9_-]+$/)) {
-        npId = url;
-    }
-    else {
-        showError('Invalid nanopublication URL. Please use a w3id.org/np/ or registry.knowledgepixels.com URL');
-        return;
-    }
-    
-    if (!npId) {
-        showError('Could not extract nanopublication ID from URL');
-        return;
-    }
-    
-    // Construct the TriG URL
-    const trigUrl = `https://registry.knowledgepixels.com/np/${npId}.trig`;
-    
-    document.getElementById('loading').classList.add('active');
-    document.getElementById('loading').textContent = `Fetching nanopublication from ${trigUrl}...`;
-    document.getElementById('error').classList.remove('active');
-    
-    try {
-        const response = await fetch(trigUrl, {
-            headers: {
-                'Accept': 'application/trig, text/turtle, text/plain'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to fetch nanopublication: ${response.status} ${response.statusText}`);
-        }
-        
-        const content = await response.text();
-        
-        if (!content || content.trim().length === 0) {
-            throw new Error('Received empty content from server');
-        }
-        
-        // Populate the textarea with the fetched content
-        document.getElementById('npContent').value = content;
-        
-        // Clear the URL input
-        urlInput.value = '';
-        
-        // Show success message briefly
-        document.getElementById('loading').textContent = 'Nanopublication fetched successfully! Processing...';
-        
-        // Automatically process the nanopub
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await processNanopub();
-        
-    } catch (error) {
-        console.error('Fetch error:', error);
-        showError(`Error fetching nanopublication: ${error.message}`);
-    } finally {
-        document.getElementById('loading').classList.remove('active');
-    }
-}
-// ============= MAIN PROCESSING FUNCTION =============
-async function processNanopub() {
-    const npContent = document.getElementById('npContent').value;
-    let templateContent = document.getElementById('templateContent').value;
-    
-    if (!npContent.trim()) {
-        showError('Please provide a nanopublication to display');
-        return;
-    }
-
-    document.getElementById('loading').classList.add('active');
-    document.getElementById('loading').textContent = 'Processing nanopublication...';
-    document.getElementById('error').classList.remove('active');
-    
-    try {
-        const parser = new NanopubParser(npContent, templateContent);
-        
-        if (!templateContent || !templateContent.trim()) {
-            document.getElementById('loading').textContent = 'Looking for template reference...';
-            const templateUri = parser.extractTemplateUri();
-            
-            if (templateUri) {
-                console.log('Found template URI:', templateUri);
-                document.getElementById('loading').textContent = 'Fetching template from ' + templateUri + '...';
-                
-                try {
-                    let fetchedContent = null;
-                    
-                    try {
-                        const response = await fetch(templateUri, {
-                            headers: {
-                                'Accept': 'text/turtle, application/trig, application/rdf+xml, text/plain'
-                            },
-                            mode: 'cors'
-                        });
-                        
-                        if (response.ok) {
-                            fetchedContent = await response.text();
-                        }
-                    } catch (directError) {
-                        console.warn('Direct fetch failed:', directError);
-                    }
-                    
-                    if (!fetchedContent) {
-                        try {
-                            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(templateUri)}`;
-                            const response = await fetch(proxyUrl);
-                            if (response.ok) {
-                                fetchedContent = await response.text();
-                            }
-                        } catch (proxyError) {
-                            console.warn('Proxy fetch failed:', proxyError);
-                        }
-                    }
-                    
-                    if (fetchedContent) {
-                        templateContent = fetchedContent;
-                        console.log('Template fetched successfully');
-                        parser.templateContent = templateContent;
-                        parser.template = null;
-                    } else {
-                        console.warn('Could not fetch template from any source');
-                        document.getElementById('loading').textContent = 'Template not accessible, continuing without it...';
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                } catch (fetchError) {
-                    console.warn('Error fetching template:', fetchError);
-                    document.getElementById('loading').textContent = 'Could not fetch template, continuing without it...';
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-            } else {
-                console.log('No template reference found in nanopublication');
-            }
-        }
-        
-        document.getElementById('loading').textContent = 'Fetching predicate labels from the web...';
-        
-        console.log('About to call parseWithLabels');
-        const data = await parser.parseWithLabels();
-        console.log('parseWithLabels returned:', data);
-        displayPublication(data);
-    } catch (error) {
-        console.error('Parse error:', error);
-        showError('Error parsing nanopublication: ' + error.message);
-    } finally {
-        document.getElementById('loading').classList.remove('active');
-    }
-}
-
-// ============= DISPLAY FUNCTIONS =============
-function displayPublication(data) {
+export function displayPublication(container, data, options) {
     console.log('=== displayPublication START ===');
     console.log('Title:', data.title);
     console.log('Structured data fields:', data.structuredData?.length);
@@ -440,7 +233,7 @@ function displayPublication(data) {
             
             html += `</div></div>`;
         });
-    } else if (data.unmatchedAssertions.length > 0) {
+    } else if (data.unmatchedAssertions && data.unmatchedAssertions.length > 0) {
         html += `<div class="raw-statements">`;
         data.unmatchedAssertions.forEach(triple => {
             html += `<div class="statement-row">`;
@@ -458,6 +251,7 @@ function displayPublication(data) {
     `;
 
     let createdByHtml = '';
+    if (data.provenance && data.provenance.length > 0) {
     data.provenance.forEach(triple => {
         if (triple.predicate.includes('wasAttributedTo')) {
             let authorDisplay = '';
@@ -475,7 +269,7 @@ function displayPublication(data) {
             }
         }
     });
-    
+     } 
     if (createdByHtml) {
         let publicationInfoHtml = '';
         if (data.date || data.license) {
@@ -495,8 +289,8 @@ function displayPublication(data) {
     // NEW: Add citation section
     html += buildCitationSection(data);
 
-    document.getElementById('publication').innerHTML = html;
-    document.getElementById('publication').classList.add('active');
+    container.innerHTML = html;
+    container.classList.add('active');
     
     // Store data globally for citation functions to access
     window.currentNanopubData = data;
@@ -687,7 +481,7 @@ function formatGenericLongLiteral(val) {
 }
 
 // ============= TOGGLE FUNCTIONS =============
-function toggleContent(id) {
+window.toggleContent = function(id) {
     const element = document.getElementById(id);
     const button = element.previousElementSibling.querySelector('.content-toggle i');
     
@@ -723,7 +517,7 @@ function copyContent(id) {
     });
 }
 
-function toggleLongLiteral(id) {
+window.toggleLongLiteral = function(id) {
     const element = document.getElementById(id);
     const button = element.nextElementSibling.querySelector('i');
     
@@ -775,6 +569,7 @@ function escapeHtml(text) {
 }
 
 function formatUri(uri) {
+    if (!uri) return '';
     if (uri.startsWith('http')) {
         const parts = uri.split(/[#\/]/);
         return parts[parts.length - 1];
@@ -789,7 +584,7 @@ function showError(message) {
 }
 
 // ============= ADVANCED OPTIONS TOGGLE =============
-function toggleAdvancedOptions() {
+window.toggleAdvancedOptions = function() {
     const options = document.getElementById('advancedOptions');
     const icon = document.getElementById('advancedToggleIcon');
     
@@ -869,6 +664,8 @@ function generateCitation(data, format = 'apa') {
     const title = data.title || 'Untitled Nanopublication';
     const uri = data.uri;
     
+    if (!uri) return ''; 
+    
     // Extract just the nanopub ID for cleaner display
     const npId = uri.split('/').pop();
     
@@ -891,7 +688,7 @@ function generateCitation(data, format = 'apa') {
 /**
  * Copy citation to clipboard
  */
-function copyCitation(format, data) {
+window.copyCitation = function(format, data) {
     const citation = generateCitation(data, format);
     
     // Strip HTML tags for plain text copy
@@ -917,7 +714,7 @@ function copyCitation(format, data) {
 /**
  * Switch displayed citation format
  */
-function switchCitationFormat(format, data) {
+window.switchCitationFormat = function(format, data) {
     const citationText = document.getElementById('citation-text');
     const citation = generateCitation(data, format);
     citationText.innerHTML = citation;
