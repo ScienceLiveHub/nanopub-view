@@ -22,6 +22,8 @@
 ## 📦 Installation
 
 > **Currently not published to npm.** Install directly from GitHub:
+> 
+> **Requirements:** Node.js 20+ (due to Vite 5 requirement)
 
 ### For Use in Your Project
 
@@ -316,7 +318,7 @@ This library is under active development for the [Science Live Platform](https:/
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+ (required by Vite 5)
 - npm or yarn
 
 ### Setup
