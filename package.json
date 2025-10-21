@@ -22,7 +22,7 @@
     "dist",
     "src"
   ],
-  "homepage": "https://sciencelivehub.github.io/nanopub-view",
+  "homepage": "https://sciencelive4all.org/nanopub-view",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
