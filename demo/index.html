@@ -1,0 +1,27 @@
+<!-- demo/index.html - Interactive demo using the library -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nanopub Viewer Demo</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div id="viewer-container" class="nanopub-viewer"></div>
+
+  <script type="module">
+    import '../src/styles/viewer.css';  // ← Import CSS here
+    import { NanopubViewer } from '../src/index.js';
+
+    const viewer = new NanopubViewer({
+      theme: 'default',
+      showMetadata: true
+    });
+
+    viewer.renderFromUri(
+      document.getElementById('viewer-container'),
+//     'https://w3id.org/np/RA6Cz33icPZrBAummwxw6MwdS-RepX-sUjW_fZz905Rvc'
+      'https://w3id.org/np/RAEg3XH-p6Aybhw_SdF_B1zgtS5lVwH4FaHPgzO7kJPcI'
+    );
+  </script>
+</body>
+</html>
