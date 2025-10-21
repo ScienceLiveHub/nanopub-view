@@ -8,13 +8,13 @@
   "types": "src/react/NanopubViewer.tsx",
   "exports": {
     ".": {
+      "types": "./src/index.js",
       "import": "./dist/nanopub-viewer.esm.js",
-      "require": "./dist/nanopub-viewer.js",
-      "types": "./src/index.js"
+      "require": "./dist/nanopub-viewer.js"
     },
     "./react": {
-      "import": "./src/react.js",
-      "types": "./src/react/NanopubViewer.tsx"
+      "types": "./src/react/NanopubViewer.tsx",
+      "import": "./src/react.js"
     },
     "./dist/nanopub-viewer.css": "./dist/nanopub-viewer.css"
   },
