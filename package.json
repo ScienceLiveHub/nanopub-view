@@ -17,7 +17,7 @@
       "import": "./src/react.js"
     },
     "./dist/nanopub-viewer.css": "./dist/nanopub-viewer.css",
-    "./src/styles/viewer.css": "./src/styles/viewer.css"
+    "./styles/viewer.css": "./dist/viewer.css"
   },
   "files": [
     "dist",
