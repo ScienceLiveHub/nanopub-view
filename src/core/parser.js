@@ -574,14 +574,56 @@ export class NanopubParser {
             this.extractPrefixes();
         }
         
-        const pubinoMatch = this.content.match(/sub:pubinfo\s*\{([^}]+)\}/s);
-        if (!pubinoMatch) return null;
+        // Try to extract pubinfo content - handle both URI styles
+        const { style, baseUri } = this.detectUriStyle();
+        let pubinfoContent = null;
         
-        const pubinfoContent = pubinoMatch[1];
+        if (style === 'slash') {
+            const pubinfoMatch = this.content.match(/sub:pubinfo\s*\{([^}]+)\}/s);
+            if (pubinfoMatch) {
+                pubinfoContent = pubinfoMatch[1];
+            }
+        } else if (style === 'hash') {
+            // Try both hash URI patterns
+            const escapedBase = baseUri.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const pattern1 = new RegExp(`<${escapedBase}/?pubinfo>\\s*\\{([^}]+(?:\\{[^}]+\\}[^}]+)*)\\}`, 's');
+            const pattern2 = new RegExp(`<${escapedBase}pubinfo>\\s*\\{([^}]+(?:\\{[^}]+\\}[^}]+)*)\\}`, 's');
+            
+            const match1 = this.content.match(pattern1);
+            const match2 = this.content.match(pattern2);
+            
+            if (match1) {
+                pubinfoContent = match1[1];
+            } else if (match2) {
+                pubinfoContent = match2[1];
+            }
+        } else {
+            // Unknown style - try both patterns
+            const slashMatch = this.content.match(/sub:pubinfo\s*\{([^}]+)\}/s);
+            const hashMatch = this.content.match(/<[^>]+#\/?pubinfo>\s*\{([^}]+(?:\{[^}]+\}[^}]+)*)\}/s);
+            
+            pubinfoContent = slashMatch ? slashMatch[1] : (hashMatch ? hashMatch[1] : null);
+        }
         
+        if (!pubinfoContent) {
+            console.warn('Could not extract pubinfo content for template URI search');
+            return null;
+        }
+        
+        console.log('Searching for template URI in pubinfo...');
+        
+        // Updated patterns to handle BOTH prefixed and full URI forms
         const patterns = [
+            // Pattern 1: nt:wasCreatedFromTemplate <URI>
             /nt:wasCreatedFromTemplate\s+<([^>]+)>(?!\w)/,
-            /nt:wasCreatedFromTemplate\s+([^\s;.,]+)(?=\s*[;.,\s])/
+            // Pattern 2: Full URI for predicate: <https://w3id.org/np/o/ntemplate/wasCreatedFromTemplate> <URI>
+            /<https:\/\/w3id\.org\/np\/o\/ntemplate\/wasCreatedFromTemplate>\s+<([^>]+)>/,
+            // Pattern 3: Without angle brackets (prefixed URI)
+            /nt:wasCreatedFromTemplate\s+([^\s;.,]+)(?=\s*[;.,\s])/,
+            // Pattern 4: General wasCreatedFromTemplate in angle brackets
+            /wasCreatedFromTemplate>\s+<([^>]+)>/,
+            // Pattern 5: wasCreatedFromTemplate with prefix
+            /wasCreatedFromTemplate\s+([^\s;.,]+)(?=\s*[;.,\s])/
         ];
         
         for (const pattern of patterns) {
@@ -600,12 +642,13 @@ export class NanopubParser {
                     expandedUri += '.trig';
                 }
                 
-                console.log('Template URI found:', uri, '→ expanded to:', expandedUri);
+                console.log('✅ Template URI found:', uri, '→ expanded to:', expandedUri);
                 
                 return expandedUri;
             }
         }
         
+        console.warn('❌ No template URI found in pubinfo');
         return null;
     }
 
