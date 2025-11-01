@@ -624,28 +624,94 @@ export class NanopubParser {
         }
     }
 
+    detectUriStyle() {
+        // Extract the sub: prefix definition
+        const prefixMatch = this.content.match(/@prefix\s+sub:\s+<([^>]+)>\s*\./);
+        
+        if (!prefixMatch) {
+            console.warn('Could not find sub: prefix definition');
+            return { style: 'unknown', baseUri: '' };
+        }
+        
+        const baseUri = prefixMatch[1];
+        
+        // Determine if using slash (/) or hash (#) URIs
+        if (baseUri.endsWith('/')) {
+            console.log('Detected SLASH URI style:', baseUri);
+            return { style: 'slash', baseUri };
+        } else if (baseUri.endsWith('#')) {
+            console.log('Detected HASH URI style:', baseUri);
+            return { style: 'hash', baseUri };
+        }
+        
+        console.warn('Unknown URI style for base:', baseUri);
+        return { style: 'unknown', baseUri };
+    }
+
     parseAllStatements() {
-        // Extract assertion block - handle nested braces
-        const assertionMatch = this.extractBlock('sub:assertion');
+        // Detect URI style first
+        const { style, baseUri } = this.detectUriStyle();
+        
+        // Extract assertion block - handle both URI styles
+        const assertionMatch = this.extractBlock('assertion', style, baseUri);
         if (assertionMatch) {
             this.data.assertions = this.parseTriples(assertionMatch);
         }
 
         // Extract provenance block
-        const provMatch = this.extractBlock('sub:provenance');
+        const provMatch = this.extractBlock('provenance', style, baseUri);
         if (provMatch) {
             this.data.provenance = this.parseTriples(provMatch);
         }
 
         // Extract pubinfo block
-        const pubinfoMatch = this.extractBlock('sub:pubinfo');
+        const pubinfoMatch = this.extractBlock('pubinfo', style, baseUri);
         if (pubinfoMatch) {
             this.data.pubinfo = this.parseTriples(pubinfoMatch);
         }
     }
 
-    extractBlock(blockName) {
-        const startPattern = new RegExp(`${blockName}\\s*\\{`, 'g');
+    extractBlock(graphName, style, baseUri) {
+        // Build the correct pattern based on URI style
+        let patterns = [];
+        
+        if (style === 'slash') {
+            // Slash URI: sub:assertion { }
+            patterns.push(`sub:${graphName}`);
+        } else if (style === 'hash') {
+            // Hash URI: <baseURI#/assertion> { } or <baseURI#assertion> { }
+            // Try both with and without the slash after #
+            patterns.push(`<${baseUri}/${graphName}>`);
+            patterns.push(`<${baseUri}${graphName}>`);
+        } else {
+            // Unknown style - try all possible patterns
+            patterns.push(`sub:${graphName}`);
+            // Also try to detect hash URIs without knowing the base
+            const baseUriMatch = this.content.match(/<([^>]+#)[^>]*>/);
+            if (baseUriMatch) {
+                const detectedBase = baseUriMatch[1];
+                patterns.push(`<${detectedBase}/${graphName}>`);
+                patterns.push(`<${detectedBase}${graphName}>`);
+            }
+        }
+        
+        // Try each pattern until one works
+        for (const pattern of patterns) {
+            const result = this.extractBlockWithPattern(pattern);
+            if (result) {
+                console.log(`Successfully extracted ${graphName} using pattern: ${pattern}`);
+                return result;
+            }
+        }
+        
+        console.warn(`Could not extract block for: ${graphName}`);
+        return null;
+    }
+
+    extractBlockWithPattern(blockPattern) {
+        // Escape special regex characters in the pattern
+        const escapedPattern = blockPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const startPattern = new RegExp(`${escapedPattern}\\s*\\{`, 'g');
         const match = startPattern.exec(this.content);
         
         if (!match) return null;
