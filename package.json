@@ -46,7 +46,7 @@
     "url": "https://github.com/ScienceLiveHub/nanopub-view.git"
   },
   "peerDependencies": {
-    "react": "^18.0.0"
+    "react": "^19.2.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.2",
