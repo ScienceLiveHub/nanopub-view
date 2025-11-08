@@ -1,3 +1,42 @@
+import { getTemplate, hasTemplate } from '../templates/registry.js';
+
+function detectTemplateFromData(data) {
+  console.log('Detecting template from data...');
+  
+  // Method 1: Check explicit templateUri
+  if (data.templateUri && hasTemplate(data.templateUri)) {
+    console.log('Found template via data.templateUri:', data.templateUri);
+    return getTemplate(data.templateUri);
+  }
+  
+  // Method 2: Check pubinfo for wasCreatedFromTemplate
+  if (data.pubinfo && Array.isArray(data.pubinfo)) {
+    const templateTriple = data.pubinfo.find(triple => 
+      triple.predicate && 
+      (triple.predicate.includes('wasCreatedFromTemplate') ||
+       triple.predicate.includes('nt:wasCreatedFromTemplate'))
+    );
+    
+    if (templateTriple && templateTriple.object && hasTemplate(templateTriple.object)) {
+      console.log('Found template via pubinfo:', templateTriple.object);
+      return getTemplate(templateTriple.object);
+    }
+  }
+  
+  // Method 3: Check URI patterns
+  if (data.uri) {
+    const uriParts = data.uri.split('/');
+    const possibleTemplateId = uriParts[uriParts.length - 1];
+    if (hasTemplate(possibleTemplateId)) {
+      console.log('Found template via URI pattern:', possibleTemplateId);
+      return getTemplate(possibleTemplateId);
+    }
+  }
+  
+  console.log('No template found, using default rendering');
+  return null;
+}
+
 // ============= SHARE BUTTON HANDLERS =============
 window.copyNanopubLink = function(uri) {
     navigator.clipboard.writeText(uri);
@@ -46,6 +85,24 @@ window.toggleShareDropdown = function(event) {
 }
 
 export function displayPublication(container, data, options) {
+    // Detect and apply template customization
+    const template = detectTemplateFromData(data);
+  
+    if (template) {
+      console.log(`Applying template: ${template.name} (${template.type})`);
+      
+      // Apply template CSS class
+      container.classList.add(template.getClassName());
+      
+      // Store template on container for later use
+      container._template = template;
+    
+      // Apply template color variables
+      const colors = template.getColors();
+      container.style.setProperty('--template-primary', colors.primary);
+      container.style.setProperty('--template-secondary', colors.secondary);
+    }
+
     console.log('=== displayPublication START ===');
     console.log('Title:', data.title);
     console.log('Structured data fields:', data.structuredData?.length);
@@ -144,8 +201,8 @@ export function displayPublication(container, data, options) {
     
     let html = `
         <div class="pub-header">
-            ${data.templateTag ? `<span class="template-type">${data.templateTag}</span>` : ''}
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-top: ${data.templateTag ? '15px' : '0'};">
+            ${template ? `<span class="template-badge">${template.name}</span>` : (data.templateTag ? `<span class="template-type">${data.templateTag}</span>` : '')}
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-top: ${template || data.templateTag ? '15px' : '0'};">
                 <h2 class="pub-title">${titleHtml}</h2>
                 <div class="share-button" style="margin-top: 5px;">
                     <button class="share-icon" onclick="toggleShareDropdown(event)" title="Share nanopublication"><i class="fas fa-share-alt"></i></button>
@@ -190,7 +247,11 @@ export function displayPublication(container, data, options) {
                 console.log('Showing main entity field with substantial content');
             }
             
-            html += `<div class="field-group">`;
+            // Check if template wants to highlight this field
+            const shouldHighlight = template && template.shouldHighlight(field);
+            const fieldGroupClass = shouldHighlight ? 'field-group highlighted-field' : 'field-group';
+            
+            html += `<div class="${fieldGroupClass}">`;
             
             if (field.isSubjectField) {
                 html += `<span class="field-label">${field.label}:</span>`;

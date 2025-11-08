@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite';
 import path from 'path';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ command, mode }) => {
   // Demo build for GitHub Pages
   if (mode === 'demo') {
     return {
+      plugins: [tailwindcss()],
       root: 'demo',
-      base: '/nanopub-view/', // Replace with your repo name
+      base: '/nanopub-view/',
       build: {
         outDir: '../demo-dist',
         emptyOutDir: true
@@ -17,6 +19,7 @@ export default defineConfig(({ command, mode }) => {
   // Library build mode
   if (command === 'build') {
     return {
+      plugins: [tailwindcss()],
       build: {
         lib: {
           entry: path.resolve(__dirname, 'src/index.js'),
@@ -41,6 +44,7 @@ export default defineConfig(({ command, mode }) => {
   
   // Dev server mode
   return {
+    plugins: [tailwindcss()],
     root: 'demo',
     server: {
       port: 3000,

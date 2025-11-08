@@ -1,0 +1,31 @@
+/* Citation template customization */
+.template-citation {
+  --template-primary: #BE2E78;
+  --template-secondary: #101E43;
+}
+
+.template-citation .pub-header {
+  background: linear-gradient(135deg, rgba(16, 30, 67, 0.08) 0%, rgba(190, 46, 120, 0.08) 100%);
+}
+
+.template-citation .template-badge {
+  background: linear-gradient(135deg, var(--template-secondary), var(--template-primary));
+}
+
+.template-citation .citation-type {
+  @apply inline-block px-3 py-1 rounded-full text-sm font-medium;
+  background: rgba(190, 46, 120, 0.1);
+  color: var(--template-primary);
+}
+
+.template-citation .cited-paper {
+  @apply p-4 rounded-lg border-l-4 mb-4;
+  border-color: var(--template-primary);
+  background: rgba(190, 46, 120, 0.03);
+}
+
+.template-citation .citation-relation {
+  @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold;
+  background: var(--template-primary);
+  color: white;
+}

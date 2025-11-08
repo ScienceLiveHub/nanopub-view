@@ -1,0 +1,6 @@
+/* Main styles entry for nanopub-view with Tailwind */
+@import './tailwind.base.css';
+
+/* Template-specific styles can be imported here */
+@import './templates/citation.css';
+@import './templates/geographical.css';

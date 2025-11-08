@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nanopub Viewer Demo</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -10,7 +12,7 @@
       padding: 20px;
       background: #f9fafb;
     }
-    .header {
+    .page-header {
       max-width: 1200px;
       margin: 0 auto 30px;
       padding: 30px;
@@ -18,30 +20,126 @@
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    .header h1 {
+    .page-header h1 {
       margin: 0 0 10px 0;
       color: #1f2937;
+      font-size: 2rem;
     }
-    .header p {
+    .page-header p {
       margin: 0;
       color: #6b7280;
+      font-size: 1rem;
+    }
+    .demo-controls {
+      max-width: 1200px;
+      margin: 0 auto 20px;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .demo-controls h3 {
+      margin: 0 0 15px 0;
+      color: #1f2937;
+      font-size: 1.2rem;
+    }
+    .demo-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .demo-btn {
+      padding: 10px 20px;
+      background: #be2e78;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+    }
+    .demo-btn:hover {
+      background: #a02463;
+      transform: translateY(-1px);
+    }
+    .demo-btn.secondary {
+      background: #6b7280;
+    }
+    .demo-btn.secondary:hover {
+      background: #4b5563;
     }
     #viewer-container {
       max-width: 1200px;
       margin: 0 auto;
     }
+    .loading-message {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px;
+      text-align: center;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .loading-message i {
+      font-size: 2rem;
+      color: #be2e78;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
-  <div class="header">
+  <div class="page-header">
     <h1>🔬 Nanopub Viewer Demo</h1>
-    <p>Interactive demonstration of the @sciencelivehub/nanopub-view library</p>
+    <p>Interactive demonstration of the @sciencelivehub/nanopub-view library with Tailwind CSS</p>
   </div>
 
-  <div id="viewer-container" class="nanopub-viewer"></div>
+  <div class="demo-controls">
+    <h3>Try Different Nanopublications</h3>
+    <div class="demo-buttons">
+      <button class="demo-btn" onclick="loadExample1()">
+        Example 1: Citation
+      </button>
+      <button class="demo-btn" onclick="loadExample2()">
+        Example 2: Geographical
+      </button>
+      <button class="demo-btn" onclick="loadExample3()">
+        Example 3: Default Nanopub
+      </button>
+      <button class="demo-btn secondary" onclick="toggleDarkMode()">
+        Toggle Dark Mode
+      </button>
+    </div>
+    
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+      <h3>Or Enter a Nanopub URI</h3>
+      <div style="display: flex; gap: 10px;">
+        <input 
+          type="text" 
+          id="customUri" 
+          placeholder="https://w3id.org/np/..."
+          style="flex: 1; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;"
+        >
+        <button class="demo-btn" onclick="loadCustomUri()">
+          Load
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewer-container" class="nanopub-viewer">
+    <div class="loading-message">
+      <i class="fas fa-spinner"></i>
+      <p>Loading nanopublication...</p>
+    </div>
+  </div>
 
   <script type="module">
-    import '../src/styles/viewer.css';
     import { NanopubViewer } from '../src/index.js';
 
     const viewer = new NanopubViewer({
@@ -49,10 +147,71 @@
       showMetadata: true
     });
 
-    viewer.renderFromUri(
-      document.getElementById('viewer-container'),
-      'https://w3id.org/np/RA6Cz33icPZrBAummwxw6MwdS-RepX-sUjW_fZz905Rvc'
-    );
+    const container = document.getElementById('viewer-container');
+
+    // Example nanopub URIs
+    const examples = {
+      example1: 'https://w3id.org/np/RA6Cz33icPZrBAummwxw6MwdS-RepX-sUjW_fZz905Rvc',
+      example2: 'https://w3id.org/np/RAsPVd3bNOPg5vxQGc1Tqn69v3dSY-ASrAhEFioutCXao', // geographical
+      example3: 'https://w3id.org/np/RAX_4tWTyjFpO6nz63s14ucuejd64t2mK3IBlkwZ7jjLo' // citation template
+    };
+
+    // Load function
+    async function loadNanopub(uri) {
+      container.innerHTML = '<div class="loading-message"><i class="fas fa-spinner"></i><p>Loading nanopublication...</p></div>';
+      
+      try {
+        await viewer.renderFromUri(container, uri);
+      } catch (error) {
+        container.innerHTML = `
+          <div class="loading-message" style="color: #dc2626;">
+            <i class="fas fa-exclamation-circle"></i>
+            <p>Error loading nanopublication: ${error.message}</p>
+          </div>
+        `;
+        console.error('Error:', error);
+      }
+    }
+
+    // Example button handlers
+    window.loadExample1 = () => loadNanopub(examples.example1);
+    window.loadExample2 = () => loadNanopub(examples.example2);
+    window.loadExample3 = () => loadNanopub(examples.example3);
+
+    // Load custom URI
+    window.loadCustomUri = () => {
+      const input = document.getElementById('customUri');
+      const uri = input.value.trim();
+      
+      if (!uri) {
+        alert('Please enter a nanopublication URI');
+        return;
+      }
+      
+      if (!uri.startsWith('http://') && !uri.startsWith('https://')) {
+        alert('URI must start with http:// or https://');
+        return;
+      }
+      
+      loadNanopub(uri);
+    };
+
+    // Allow Enter key to submit
+    document.getElementById('customUri').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        window.loadCustomUri();
+      }
+    });
+
+    // Dark mode toggle
+    window.toggleDarkMode = () => {
+      document.documentElement.classList.toggle('dark');
+      document.body.style.background = 
+        document.documentElement.classList.contains('dark') ? '#1f2937' : '#f9fafb';
+    };
+
+    // Load first example on page load
+    loadNanopub(examples.example1);
   </script>
 </body>
 </html>

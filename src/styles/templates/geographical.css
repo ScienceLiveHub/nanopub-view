@@ -1,0 +1,31 @@
+/* Geographical template customization */
+.template-geographical {
+  --template-primary: #059669;
+  --template-secondary: #064e3b;
+}
+
+.template-geographical .pub-header {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.05) 0%, rgba(6, 78, 59, 0.05) 100%);
+}
+
+.template-geographical .template-badge {
+  background: var(--template-primary);
+}
+
+.template-geographical .geometry-preview {
+  @apply p-4 rounded-lg border-2;
+  border-color: var(--template-primary);
+  background: rgba(5, 150, 105, 0.05);
+}
+
+.template-geographical .wkt-display {
+  @apply font-mono text-sm p-3 rounded;
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--template-secondary);
+}
+
+.template-geographical .location-badge {
+  @apply inline-flex items-center gap-1 px-2 py-1 rounded text-sm;
+  background: var(--template-primary);
+  color: white;
+}
