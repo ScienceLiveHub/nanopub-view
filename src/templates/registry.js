@@ -1,82 +1,154 @@
 // src/templates/registry.js
-// Template customization registry for nanopub-view
-// Similar to nanopub-create's template system
+// Template Registry - Maps template IDs to customization classes
 
-import { GeographicalTemplate } from './geographical/geographicalTemplate.js';
-import { CitationTemplate } from './citation/citationTemplate.js';
-import { CommentTemplate } from './comment/commentTemplate.js';
+import { BaseTemplate } from './base/BaseTemplate.js';
+import { GeographicalTemplate } from './geographical/GeographicalTemplate.js';
 
 /**
  * Template Registry
- * Maps template IDs to their customization classes
+ * 
+ * Central registry for template customizations.
+ * Maps template URIs/IDs to their customization classes.
  */
-const TEMPLATE_REGISTRY = new Map();
-
-/**
- * Register a template customization
- */
-export function registerTemplate(templateId, TemplateClass) {
-  TEMPLATE_REGISTRY.set(templateId, TemplateClass);
-  console.log(`✅ Registered template: ${templateId}`);
-}
-
-/**
- * Get template customization for a given template ID or URI
- */
-export function getTemplate(templateIdOrUri) {
-  // Extract ID from full URI if needed
-  let templateId = templateIdOrUri;
-  if (templateIdOrUri.includes('w3id.org/np/')) {
-    templateId = templateIdOrUri.split('/').pop();
+class TemplateRegistry {
+  constructor() {
+    this.templates = new Map();
+    this.initialized = false;
   }
   
-  const TemplateClass = TEMPLATE_REGISTRY.get(templateId);
-  if (TemplateClass) {
-    return new TemplateClass();
+  /**
+   * Initialize and register all built-in templates
+   */
+  init() {
+    if (this.initialized) return;
+    
+    console.log('Initializing template registry...');
+    
+    // Register built-in templates
+    this.registerBuiltInTemplates();
+    
+    this.initialized = true;
+    console.log(`✅ Template registry initialized with ${this.templates.size} templates`);
   }
   
-  return null;
+  /**
+   * Register a template customization class
+   */
+  register(templateIdOrUri, TemplateClass) {
+    const id = this.normalizeId(templateIdOrUri);
+    this.templates.set(id, TemplateClass);
+    console.log(`✅ Registered template: ${id}`);
+  }
+  
+  /**
+   * Get template customization for a given ID/URI
+   * Returns instance of template class or BaseTemplate if not found
+   */
+  get(templateIdOrUri, templateMetadata = null) {
+    this.init(); // Ensure registry is initialized
+    
+    if (!templateIdOrUri) {
+      return new BaseTemplate(templateMetadata);
+    }
+    
+    const id = this.normalizeId(templateIdOrUri);
+    const TemplateClass = this.templates.get(id);
+    
+    if (TemplateClass) {
+      console.log(`✅ Found customization for template: ${id}`);
+      return new TemplateClass(templateMetadata);
+    }
+    
+    console.log(`ℹ️ No customization found for template: ${id}, using BaseTemplate`);
+    return new BaseTemplate(templateMetadata);
+  }
+  
+  /**
+   * Check if a template is registered
+   */
+  has(templateIdOrUri) {
+    this.init();
+    const id = this.normalizeId(templateIdOrUri);
+    return this.templates.has(id);
+  }
+  
+  /**
+   * Get all registered template IDs
+   */
+  getAllIds() {
+    this.init();
+    return Array.from(this.templates.keys());
+  }
+  
+  /**
+   * Normalize template identifier
+   * Extracts ID from full URI if needed
+   */
+  normalizeId(templateIdOrUri) {
+    if (!templateIdOrUri) return null;
+    
+    const str = String(templateIdOrUri);
+    
+    // If it's a full URI, extract the ID
+    if (str.includes('w3id.org/np/')) {
+      return str.split('/').pop().split('#')[0];
+    }
+    
+    return str;
+  }
+  
+  /**
+   * Register all built-in template customizations
+   */
+  registerBuiltInTemplates() {
+    // Geographical Coverage Template
+    this.register(
+      'RAsPVd3bNOPg5vxQGc1Tqn69v3dSY-ASrAhEFioutCXao',
+      GeographicalTemplate
+    );
+    
+    // Add more templates here as they are created:
+    
+    // Citation with CiTO
+    // this.register(
+    //   'RAX_4tWTyjFpO6nz63s14ucuejd64t2mK3IBlkwZ7jjLo',
+    //   CitationTemplate
+    // );
+    
+    // Comment on Paper
+    // this.register(
+    //   'RAVEpTdLrX5XrhNl_gnvTaBcjRRSDu_hhZix8gu2HO7jI',
+    //   CommentTemplate
+    // );
+    
+    // AIDA Sentence
+    // this.register(
+    //   'RA4fmfVFULMP50FqDFX8fEMn66uDF07vXKFXh_L9aoQKE',
+    //   AidaTemplate
+    // );
+  }
 }
 
-/**
- * Check if a template is registered
- */
+// Create singleton instance
+const registry = new TemplateRegistry();
+
+// Export individual functions that delegate to the singleton
+export function register(templateIdOrUri, TemplateClass) {
+  return registry.register(templateIdOrUri, TemplateClass);
+}
+
+export function getTemplate(templateIdOrUri, templateMetadata = null) {
+  return registry.get(templateIdOrUri, templateMetadata);
+}
+
 export function hasTemplate(templateIdOrUri) {
-  let templateId = templateIdOrUri;
-  if (templateIdOrUri.includes('w3id.org/np/')) {
-    templateId = templateIdOrUri.split('/').pop();
-  }
-  
-  return TEMPLATE_REGISTRY.has(templateId);
+  return registry.has(templateIdOrUri);
 }
 
-/**
- * Get all registered template IDs
- */
 export function getAllTemplateIds() {
-  return Array.from(TEMPLATE_REGISTRY.keys());
+  return registry.getAllIds();
 }
 
-// ============================================
-// REGISTER BUILT-IN TEMPLATES
-// ============================================
-
-// Geographical Coverage Template
-registerTemplate(
-  'RAsPVd3bNOPg5vxQGc1Tqn69v3dSY-ASrAhEFioutCXao',
-  GeographicalTemplate
-);
-
-// Citation with CiTO Template
-registerTemplate(
-  'RAX_4tWTyjFpO6nz63s14ucuejd64t2mK3IBlkwZ7jjLo',
-  CitationTemplate
-);
-
-// Comment on Paper Template
-registerTemplate(
-  'RAVEpTdLrX5XrhNl_gnvTaBcjRRSDu_hhZix8gu2HO7jI',
-  CommentTemplate
-);
-
-// Add more templates here as they are created
+// Also export the singleton and class for advanced usage
+export default registry;
+export { TemplateRegistry };
