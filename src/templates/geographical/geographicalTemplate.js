@@ -2,6 +2,8 @@
 // Geographical Coverage Template Customization
 
 import { BaseTemplate } from '../base/BaseTemplate.js';
+import { TabbedGeographicalViewer } from '../../core/tabbedViewer.js';
+import { MapViewer } from '../../core/mapViewer.js';
 
 /**
  * Geographical Coverage Template
@@ -21,6 +23,98 @@ export class GeographicalTemplate extends BaseTemplate {
     super(templateMetadata);
     this.name = 'Geographical Coverage';
     this.type = 'geographical';
+    this.tabbedViewer = null; // Store reference to tabbed viewer
+  }
+  
+  // ============================================
+  // MAP VISUALIZATION SUPPORT
+  // ============================================
+  
+  /**
+   * Check if nanopub has WKT geometry data for map visualization
+   */
+  hasWKTGeometry(data) {
+    if (!data) return false;
+    
+    // Check in structured data
+    if (data.structuredData) {
+      const hasWKT = data.structuredData.some(field =>
+        this.uriMatches(field.predicate, 'asWKT') ||
+        this.uriMatches(field.predicate, 'wktLiteral') ||
+        (field.value && /^(POINT|LINESTRING|POLYGON|MULTIPOINT)/i.test(field.value))
+      );
+      if (hasWKT) return true;
+    }
+    
+    // Fallback: Use MapViewer's extraction method
+    return MapViewer.extractWKT(data) !== null;
+  }
+  
+  /**
+   * Enhanced render method with map support
+   * Call this instead of render() to get map visualization
+   */
+  renderWithMap(data, containerId) {
+    const hasWKT = this.hasWKTGeometry(data);
+    
+    if (hasWKT) {
+      // Use tabbed viewer with map
+      this.renderTabbedView(data, containerId);
+    } else {
+      // No geometry - use standard rendering
+      this.render(data, containerId);
+    }
+  }
+  
+  /**
+   * Render tabbed view with Details and Map tabs
+   */
+  renderTabbedView(data, containerId) {
+    // Initialize tabbed viewer
+    this.tabbedViewer = new TabbedGeographicalViewer(containerId, {
+      showDetailsTab: true,
+      showMapTab: true,
+      defaultTab: 'details' // Start with details view
+    });
+    
+    this.tabbedViewer.initialize();
+    this.tabbedViewer.loadNanopubData(data);
+    
+    // Render the details content in the details tab
+    const detailsContainerId = `${containerId}-details`;
+    
+    // Wait for DOM to be ready, then render details
+    setTimeout(() => {
+      const detailsContainer = document.getElementById(detailsContainerId);
+      if (detailsContainer) {
+        // Use the parent class render method to populate details tab
+        this.renderToElement(data, detailsContainer);
+      }
+    }, 100);
+  }
+  
+  /**
+   * Helper to render to a specific element (not just by ID)
+   */
+  renderToElement(data, element) {
+    if (!element) return;
+    
+    // Generate the HTML content using your existing rendering logic
+    const html = this.generateHTML(data);
+    element.innerHTML = html;
+    
+    // Apply any post-render customizations
+    this.applyPostRenderCustomizations(element, data);
+  }
+  
+  /**
+   * Clean up map resources when destroying
+   */
+  destroy() {
+    if (this.tabbedViewer) {
+      this.tabbedViewer.destroy();
+      this.tabbedViewer = null;
+    }
   }
   
   // ============================================
@@ -407,14 +501,12 @@ export class GeographicalTemplate extends BaseTemplate {
     const metadata = [];
     
     // Check if geometry is provided
-    const hasGeometry = data.structuredData?.some(f =>
-      this.uriMatches(f.predicate, 'wkt')
-    );
+    const hasGeometry = this.hasWKTGeometry(data);
     
     if (hasGeometry) {
       metadata.push({
         label: 'Precision',
-        value: '🗺️ Includes geometric coordinates',
+        value: '🗺️ Includes geometric coordinates (Map view available)',
         cssClass: 'text-emerald-700 font-medium'
       });
     }

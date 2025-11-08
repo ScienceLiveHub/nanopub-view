@@ -54,5 +54,8 @@
     "react": "^18.0.0",
     "tailwindcss": "^4.1.17",
     "vite": "^7.1.11"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
   }
 }

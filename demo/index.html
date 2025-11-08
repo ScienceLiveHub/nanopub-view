@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nanopub Viewer Demo</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -29,6 +31,17 @@
       margin: 0;
       color: #6b7280;
       font-size: 1rem;
+    }
+    .info-badge {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: #f0fdf4;
+      color: #059669;
+      border: 2px solid #d1fae5;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
     }
     .demo-controls {
       max-width: 1200px;
@@ -63,6 +76,15 @@
       background: #a02463;
       transform: translateY(-1px);
     }
+    .demo-btn.geographical {
+      background: #059669;
+    }
+    .demo-btn.geographical:hover {
+      background: #047857;
+    }
+    .demo-btn.geographical::before {
+      content: '🗺️ ';
+    }
     .demo-btn.secondary {
       background: #6b7280;
     }
@@ -72,6 +94,7 @@
     #viewer-container {
       max-width: 1200px;
       margin: 0 auto;
+      min-height: 600px;
     }
     .loading-message {
       max-width: 1200px;
@@ -96,7 +119,10 @@
 <body>
   <div class="page-header">
     <h1>🔬 Nanopub Viewer Demo</h1>
-    <p>Interactive demonstration of the @sciencelivehub/nanopub-view library with Tailwind CSS</p>
+    <p>Interactive demonstration of the @sciencelivehub/nanopub-view library</p>
+    <div class="info-badge">
+      ✨ Geographical nanopubs show interactive maps!
+    </div>
   </div>
 
   <div class="demo-controls">
@@ -105,8 +131,8 @@
       <button class="demo-btn" onclick="loadExample1()">
         Example 1: Citation
       </button>
-      <button class="demo-btn" onclick="loadExample2()">
-        Example 2: Geographical
+      <button class="demo-btn geographical" onclick="loadExample2()">
+        Example 2: Geographical with Map
       </button>
       <button class="demo-btn" onclick="loadExample3()">
         Example 3: CiTO Nanopub
@@ -122,13 +148,16 @@
         <input 
           type="text" 
           id="customUri" 
-          placeholder="https://w3id.org/np/..."
+          placeholder="http://purl.org/np/..."
           style="flex: 1; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;"
         >
         <button class="demo-btn" onclick="loadCustomUri()">
           Load
         </button>
       </div>
+      <p style="margin-top: 10px; font-size: 0.85rem; color: #6b7280;">
+        💡 Geographical nanopubs with WKT geometry will show an interactive map!
+      </p>
     </div>
   </div>
 
@@ -139,8 +168,27 @@
     </div>
   </div>
 
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
   <script type="module">
     import { NanopubViewer } from '../src/index.js';
+    
+    // Try to import map components (they may not be in your build yet)
+    let GeographicalTemplate, MapViewer;
+    let mapComponentsAvailable = false;
+    
+    try {
+      const geoModule = await import('../src/templates/geographical/GeographicalTemplate.js');
+      const mapModule = await import('../src/core/mapViewer.js');
+      GeographicalTemplate = geoModule.GeographicalTemplate;
+      MapViewer = mapModule.MapViewer;
+      mapComponentsAvailable = true;
+      console.log('✅ Map components loaded successfully');
+    } catch (error) {
+      console.warn('⚠️ Map components not available:', error.message);
+      console.log('📋 Falling back to standard rendering');
+    }
 
     const viewer = new NanopubViewer({
       theme: 'default',
@@ -149,39 +197,123 @@
 
     const container = document.getElementById('viewer-container');
 
-    // Example nanopub URIs
+    // Example URIs (using HTTP to avoid SSL issues)
     const examples = {
-      example1: 'https://w3id.org/np/RA6Cz33icPZrBAummwxw6MwdS-RepX-sUjW_fZz905Rvc', // quotation with comment
-      example2: 'https://w3id.org/np/RAuU9BrOOYHLkOki1W_jANOyuC7YYiaz14Zvn2ie0Y-Q8', // geographical
-      example3: 'https://w3id.org/np/RAmrjUo0y5mjY5KLcVhjzIwO9TR5-R3oDpW8S0_SpIHl4' // CiTO
+      example1: 'http://purl.org/np/RA6Cz33icPZrBAummwxw6MwdS-RepX-sUjW_fZz905Rvc',
+      example2: 'http://purl.org/np/RAuU9BrOOYHLkOki1W_jANOyuC7YYiaz14Zvn2ie0Y-Q8',
+      example3: 'http://purl.org/np/RAmrjUo0y5mjY5KLcVhjzIwO9TR5-R3oDpW8S0_SpIHl4'
     };
 
-    // Load function
-    async function loadNanopub(uri) {
-      container.innerHTML = '<div class="loading-message"><i class="fas fa-spinner"></i><p>Loading nanopublication...</p></div>';
+    /**
+     * Check if nanopub should show map
+     */
+    function shouldShowMap(data) {
+      if (!mapComponentsAvailable) return false;
       
+      // Check if geographical template
+      const isGeo = data.templateUri && 
+        (data.templateUri.includes('geographical') || 
+         data.templateUri.includes('RAsPVd3bNOPg5vxQGc1Tqn69v3dSY'));
+      
+      if (!isGeo) return false;
+      
+      // Check if has WKT geometry
       try {
-        await viewer.renderFromUri(container, uri);
+        const wkt = MapViewer.extractWKT(data);
+        return wkt !== null;
       } catch (error) {
-        container.innerHTML = `
-          <div class="loading-message" style="color: #dc2626;">
-            <i class="fas fa-exclamation-circle"></i>
-            <p>Error loading nanopublication: ${error.message}</p>
-          </div>
-        `;
-        console.error('Error:', error);
+        console.error('Error checking for WKT:', error);
+        return false;
       }
     }
 
-    // Example button handlers
+    /**
+     * Render with map
+     */
+    function renderWithMap(data, containerId) {
+      console.log('🗺️ Rendering geographical nanopub with map');
+      
+      try {
+        const template = new GeographicalTemplate();
+        template.renderWithMap(data, containerId);
+      } catch (error) {
+        console.error('Error rendering with map:', error);
+        console.log('📋 Falling back to standard rendering');
+        viewer.render(container, data);
+      }
+    }
+
+    /**
+     * Load nanopub
+     */
+    async function loadNanopub(uri) {
+      container.innerHTML = '<div class="loading-message"><i class="fas fa-spinner"></i><p>Loading nanopublication...</p></div>';
+      
+      console.log('🔄 Loading:', uri);
+      
+      try {
+        // Try to use viewer's renderFromUri if available
+        if (viewer.renderFromUri) {
+          // If viewer has its own renderFromUri, try to use it
+          await viewer.renderFromUri(container, uri);
+          
+          // After rendering, check if we should have shown a map
+          // (This is a fallback if the viewer doesn't support maps yet)
+          if (mapComponentsAvailable) {
+            // Check the current rendering - if it's geographical and has no map tabs,
+            // we need to re-render with map
+            const hasTabs = container.querySelector('.geo-tabs-header');
+            if (!hasTabs && container.dataset.isGeographical) {
+              console.log('🔄 Re-rendering with map support...');
+              const data = JSON.parse(container.dataset.nanopubData);
+              renderWithMap(data, container.id);
+            }
+          }
+        } else {
+          // Fallback: Manual fetch and render
+          console.log('Using manual fetch and render');
+          const response = await fetch(`https://server.nanopubs.lod.labs.vu.nl/${uri.split('/').pop()}`);
+          const trigContent = await response.text();
+          
+          // You'll need a parser here - this is simplified
+          const data = { 
+            raw: trigContent,
+            templateUri: trigContent.includes('geographical') ? 'geographical' : null
+          };
+          
+          if (shouldShowMap(data)) {
+            renderWithMap(data, container.id);
+          } else {
+            viewer.render(container, data);
+          }
+        }
+        
+        console.log('✅ Loaded successfully');
+        
+      } catch (error) {
+        console.error('❌ Error:', error);
+        
+        container.innerHTML = `
+          <div class="loading-message" style="color: #dc2626;">
+            <i class="fas fa-exclamation-circle"></i>
+            <p><strong>Error loading nanopublication</strong></p>
+            <p style="font-size: 0.9rem; margin-top: 10px;">${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    // Button handlers
     window.loadExample1 = () => loadNanopub(examples.example1);
-    window.loadExample2 = () => loadNanopub(examples.example2);
+    window.loadExample2 = () => {
+      console.log('🗺️ Loading geographical nanopub - map should appear!');
+      loadNanopub(examples.example2);
+    };
     window.loadExample3 = () => loadNanopub(examples.example3);
 
-    // Load custom URI
     window.loadCustomUri = () => {
       const input = document.getElementById('customUri');
-      const uri = input.value.trim();
+      let uri = input.value.trim();
       
       if (!uri) {
         alert('Please enter a nanopublication URI');
@@ -193,24 +325,29 @@
         return;
       }
       
+      // Convert https to http to avoid certificate issues
+      if (uri.startsWith('https://w3id.org')) {
+        uri = uri.replace('https://', 'http://').replace('w3id.org', 'purl.org');
+        console.log('ℹ️ Converted to HTTP:', uri);
+      }
+      
       loadNanopub(uri);
     };
 
-    // Allow Enter key to submit
     document.getElementById('customUri').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         window.loadCustomUri();
       }
     });
 
-    // Dark mode toggle
     window.toggleDarkMode = () => {
       document.documentElement.classList.toggle('dark');
       document.body.style.background = 
         document.documentElement.classList.contains('dark') ? '#1f2937' : '#f9fafb';
     };
 
-    // Load first example on page load
+    // Load first example
+    console.log('🚀 Demo ready');
     loadNanopub(examples.example1);
   </script>
 </body>
