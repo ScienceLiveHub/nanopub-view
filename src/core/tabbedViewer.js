@@ -36,6 +36,11 @@ export class TabbedGeographicalViewer {
     
     // Create tab structure
     this.createTabStructure();
+    
+    // If starting on map tab, initialize the map viewer immediately
+    if (this.currentTab === 'map') {
+      this.initializeMapViewer();
+    }
   }
   
   /**
@@ -195,7 +200,22 @@ export class TabbedGeographicalViewer {
     if (!this.mapViewer) return;
     
     // Extract WKT from nanopub
-    const wkt = MapViewer.extractWKT(data);
+    // First check structuredData (where the parser puts it)
+    let wkt = null;
+    
+    if (data.structuredData && Array.isArray(data.structuredData)) {
+      for (const field of data.structuredData) {
+        if (field.label && field.label.toLowerCase().includes('wkt')) {
+          wkt = field.values && field.values[0] ? field.values[0].raw : null;
+          break;
+        }
+      }
+    }
+    
+    // Fallback to MapViewer.extractWKT for assertions
+    if (!wkt) {
+      wkt = MapViewer.extractWKT(data);
+    }
     
     if (wkt) {
       // Clear existing geometries
